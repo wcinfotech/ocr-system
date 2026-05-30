@@ -5,8 +5,8 @@
 
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_URL 
-  ? `${import.meta.env.VITE_API_URL}/api` 
+const API_BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
   : '/api';
 
 const api = axios.create({
@@ -31,18 +31,12 @@ export const uploadBill = (file, onProgress) => {
 };
 
 // Get all bills with optional filters
-export const getBills = (params = {}) => {
-  return api.get('/bills', { params });
-};
+export const getBills = (params = {}) => api.get('/bills', { params });
 
 // Get single bill by ID
-export const getBillById = (id) => {
-  return api.get(`/bill/${id}`);
-};
+export const getBillById = (id) => api.get(`/bill/${id}`);
 
 // Delete a bill by ID
-export const deleteBill = (id) => {
-  return api.delete(`/bill/${id}`);
-};
+export const deleteBill = (id) => api.delete(`/bill/${id}`);
 
 export default api;
