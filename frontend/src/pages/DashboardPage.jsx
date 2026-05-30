@@ -4,20 +4,17 @@ import toast from 'react-hot-toast';
 import {
   HiOutlineSearch, HiOutlineTrash, HiOutlineEye, HiOutlineRefresh,
   HiOutlineDocumentText, HiOutlineCalendar, HiOutlineChevronLeft,
-  HiOutlineChevronRight, HiOutlineFilter,
+  HiOutlineChevronRight, HiOutlineFilter, HiOutlineDownload,
+  HiOutlineExternalLink,
 } from 'react-icons/hi';
-import { getBills, deleteBill } from '../services/api';
+import { getBills, deleteBill, exportBills, getStats } from '../services/api';
 
 const PLATFORMS = [
   { value: '', label: 'All Platforms' },
-  { value: 'amazon', label: 'Amazon' },
-  { value: 'flipkart', label: 'Flipkart' },
-  { value: 'meesho', label: 'Meesho' },
-  { value: 'myntra', label: 'Myntra' },
-  { value: 'snapdeal', label: 'Snapdeal' },
-  { value: 'jiomart', label: 'JioMart' },
-  { value: 'ajio', label: 'Ajio' },
-  { value: 'personal', label: 'Personal' },
+  { value: 'amazon', label: 'Amazon' }, { value: 'flipkart', label: 'Flipkart' },
+  { value: 'meesho', label: 'Meesho' }, { value: 'myntra', label: 'Myntra' },
+  { value: 'snapdeal', label: 'Snapdeal' }, { value: 'jiomart', label: 'JioMart' },
+  { value: 'ajio', label: 'Ajio' }, { value: 'personal', label: 'Personal' },
   { value: 'other', label: 'Other' },
 ];
 
@@ -32,6 +29,7 @@ const DashboardPage = () => {
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 25, pages: 0 });
   const [deleting, setDeleting] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [stats, setStats] = useState(null);
 
   const fetchBills = useCallback(async (page = 1) => {
     setLoading(true);
@@ -42,37 +40,52 @@ const DashboardPage = () => {
       if (endDate) params.endDate = endDate;
       if (platform) params.platform = platform;
       if (billType) params.billType = billType;
-
       const { data } = await getBills(params);
-      if (data.success) {
-        setBills(data.data);
-        setPagination(data.pagination);
-      }
-    } catch {
-      toast.error('Failed to load bills');
-    } finally {
-      setLoading(false);
-    }
+      if (data.success) { setBills(data.data); setPagination(data.pagination); }
+    } catch { toast.error('Failed to load bills'); }
+    finally { setLoading(false); }
   }, [search, startDate, endDate, platform, billType, pagination.limit]);
 
-  useEffect(() => { fetchBills(); }, [fetchBills]);
+  const fetchStats = async () => {
+    try {
+      const { data } = await getStats();
+      if (data.success) setStats(data.data);
+    } catch { /* silent */ }
+  };
+
+  useEffect(() => { fetchBills(); fetchStats(); }, [fetchBills]);
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this bill?')) return;
     setDeleting(id);
-    try {
-      await deleteBill(id);
-      toast.success('Bill deleted');
-      fetchBills(pagination.page);
-    } catch { toast.error('Failed to delete'); }
+    try { await deleteBill(id); toast.success('Bill deleted'); fetchBills(pagination.page); fetchStats(); }
+    catch { toast.error('Failed to delete'); }
     finally { setDeleting(null); }
   };
 
-  const handleSearch = (e) => { e.preventDefault(); fetchBills(1); };
-  const clearFilters = () => {
-    setSearch(''); setStartDate(''); setEndDate('');
-    setPlatform(''); setBillType('');
+  const handleExport = async () => {
+    try {
+      const params = {};
+      if (platform) params.platform = platform;
+      if (billType) params.billType = billType;
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
+      params.format = 'csv';
+      const response = await exportBills(params);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `bills_export_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Export downloaded!');
+    } catch { toast.error('Export failed'); }
   };
+
+  const handleSearch = (e) => { e.preventDefault(); fetchBills(1); };
+  const clearFilters = () => { setSearch(''); setStartDate(''); setEndDate(''); setPlatform(''); setBillType(''); };
 
   const StatusBadge = ({ status }) => (
     <span className={`badge badge-${status}`}>
@@ -90,19 +103,12 @@ const DashboardPage = () => {
   const PlatformBadge = ({ name }) => {
     if (!name) return <span className="text-slate-600">—</span>;
     const colors = {
-      amazon: 'bg-amber-500/15 text-amber-400',
-      flipkart: 'bg-blue-500/15 text-blue-400',
-      meesho: 'bg-pink-500/15 text-pink-400',
-      myntra: 'bg-rose-500/15 text-rose-400',
-      jiomart: 'bg-sky-500/15 text-sky-400',
-      ajio: 'bg-purple-500/15 text-purple-400',
+      amazon: 'bg-amber-500/15 text-amber-400', flipkart: 'bg-blue-500/15 text-blue-400',
+      meesho: 'bg-pink-500/15 text-pink-400', myntra: 'bg-rose-500/15 text-rose-400',
+      jiomart: 'bg-sky-500/15 text-sky-400', ajio: 'bg-purple-500/15 text-purple-400',
       personal: 'bg-slate-500/15 text-slate-400',
     };
-    return (
-      <span className={`badge ${colors[name] || 'bg-slate-500/15 text-slate-400'}`}>
-        {name.charAt(0).toUpperCase() + name.slice(1)}
-      </span>
-    );
+    return <span className={`badge ${colors[name] || 'bg-slate-500/15 text-slate-400'}`}>{name.charAt(0).toUpperCase() + name.slice(1)}</span>;
   };
 
   const fmt = (v) => v || '—';
@@ -110,6 +116,23 @@ const DashboardPage = () => {
 
   return (
     <div className="animate-fadeIn">
+      {/* Stats Cards */}
+      {stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+          {[
+            { label: 'Total Bills', value: stats.total, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
+            { label: 'Completed', value: stats.completed, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+            { label: 'Processing', value: stats.processing, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+            { label: 'Failed', value: stats.failed, color: 'text-red-400', bg: 'bg-red-500/10' },
+          ].map(s => (
+            <div key={s.label} className={`glass-card p-4 ${s.bg}`}>
+              <p className="text-xs text-slate-500">{s.label}</p>
+              <p className={`text-2xl font-bold ${s.color} mt-1`}>{s.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
@@ -117,11 +140,14 @@ const DashboardPage = () => {
           <p className="text-sm text-slate-500 mt-1">{pagination.total} total bill{pagination.total !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={handleExport} className="p-2.5 rounded-xl glass-card text-slate-400 hover:text-emerald-400 transition-colors" title="Export CSV">
+            <HiOutlineDownload className="w-5 h-5" />
+          </button>
           <button onClick={() => setShowFilters(!showFilters)}
             className={`p-2.5 rounded-xl glass-card transition-colors ${showFilters ? 'text-indigo-400' : 'text-slate-400 hover:text-white'}`}>
             <HiOutlineFilter className="w-5 h-5" />
           </button>
-          <button onClick={() => fetchBills(pagination.page)} className="btn-primary flex items-center gap-2">
+          <button onClick={() => { fetchBills(pagination.page); fetchStats(); }} className="btn-primary flex items-center gap-2">
             <HiOutlineRefresh className="w-4 h-4" /> Refresh
           </button>
         </div>
@@ -132,35 +158,29 @@ const DashboardPage = () => {
         <div className="flex gap-3">
           <div className="relative flex-1">
             <HiOutlineSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
-            <input type="text" placeholder="Search vendor, invoice, order, AWB..."
+            <input type="text" placeholder="Search vendor, invoice, order, AWB, SKU..."
               value={search} onChange={(e) => setSearch(e.target.value)} className="input-field pl-9" />
           </div>
           <button type="submit" className="btn-primary whitespace-nowrap">Search</button>
         </div>
-
         {showFilters && (
           <div className="flex flex-wrap gap-3 pt-2 border-t border-white/5">
             <div className="relative">
               <HiOutlineCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
-              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-                className="input-field pl-9 w-40" />
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input-field pl-9 w-40" />
             </div>
             <span className="text-slate-600 self-center">to</span>
             <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input-field w-40" />
-
             <select value={platform} onChange={(e) => setPlatform(e.target.value)} className="input-field w-40">
               {PLATFORMS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
             </select>
-
             <select value={billType} onChange={(e) => setBillType(e.target.value)} className="input-field w-36">
               <option value="">All Types</option>
               <option value="regular">Regular</option>
               <option value="return">Return</option>
             </select>
-
             {(search || startDate || endDate || platform || billType) && (
-              <button type="button" onClick={clearFilters}
-                className="text-xs text-red-400 hover:text-red-300 self-center whitespace-nowrap">✕ Clear All</button>
+              <button type="button" onClick={clearFilters} className="text-xs text-red-400 hover:text-red-300 self-center whitespace-nowrap">✕ Clear All</button>
             )}
           </div>
         )}
@@ -182,20 +202,10 @@ const DashboardPage = () => {
             <table>
               <thead>
                 <tr>
-                  <th>Type</th>
-                  <th>Platform</th>
-                  <th>Invoice No.</th>
-                  <th>Order No.</th>
-                  <th>Date</th>
-                  <th>Vendor</th>
-                  <th>Amount</th>
-                  <th>AWB</th>
-                  <th>Delivery</th>
-                  <th>Payment</th>
-                  <th>SKU</th>
-                  <th>Qty</th>
-                  <th>Status</th>
-                  <th className="text-right">Actions</th>
+                  <th>Type</th><th>Platform</th><th>Invoice No.</th><th>Order No.</th>
+                  <th>Date</th><th>Vendor</th><th>Amount</th><th>AWB</th>
+                  <th>Delivery</th><th>Payment</th><th>SKU</th>
+                  <th>Items</th><th>Qty</th><th>Status</th><th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -208,17 +218,29 @@ const DashboardPage = () => {
                     <td className="text-slate-400 text-xs whitespace-nowrap">{fmt(bill.billDate)}</td>
                     <td className="text-slate-200 max-w-[140px] truncate">{fmt(bill.vendorName)}</td>
                     <td className="font-semibold text-emerald-400 whitespace-nowrap">{fmtAmt(bill.amount)}</td>
-                    <td className="font-mono text-xs text-slate-400 max-w-[100px] truncate">{fmt(bill.awbNumber)}</td>
+                    <td className="font-mono text-xs text-slate-400 max-w-[120px] truncate" title={bill.awbNumber || ''}>{fmt(bill.awbNumber)}</td>
                     <td className="text-xs text-slate-400">{fmt(bill.deliveryPartner)}</td>
                     <td><span className={`badge ${bill.payment === 'COD' || bill.payment === 'Cash on Delivery' ? 'badge-medium' : 'badge-completed'}`}>
                       {bill.payment || '—'}</span></td>
-                    <td className="font-mono text-xs text-slate-400 max-w-[90px] truncate">{fmt(bill.sku)}</td>
-                    <td className="text-center text-slate-300">{bill.qty || '—'}</td>
+                    <td className="font-mono text-xs text-slate-400 max-w-[120px] truncate" title={bill.sku || ''}>
+                      {fmt(bill.sku)}
+                    </td>
+                    <td className="text-center">
+                      {bill.totalItems > 0 ? (
+                        <span className="badge bg-indigo-500/15 text-indigo-400">{bill.totalItems}</span>
+                      ) : '—'}
+                    </td>
+                    <td className="text-center text-slate-300">{bill.totalQty || bill.qty || '—'}</td>
                     <td><StatusBadge status={bill.status} /></td>
                     <td>
                       <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                        <Link to={`/bill/${bill._id}`}
-                          className="p-2 rounded-lg hover:bg-indigo-500/15 text-slate-400 hover:text-indigo-400 transition-colors" title="View">
+                        {bill.cloudinaryUrl && (
+                          <a href={bill.cloudinaryUrl} target="_blank" rel="noopener noreferrer"
+                            className="p-2 rounded-lg hover:bg-sky-500/15 text-slate-400 hover:text-sky-400 transition-colors" title="View File">
+                            <HiOutlineExternalLink className="w-4 h-4" />
+                          </a>
+                        )}
+                        <Link to={`/bill/${bill._id}`} className="p-2 rounded-lg hover:bg-indigo-500/15 text-slate-400 hover:text-indigo-400 transition-colors" title="View">
                           <HiOutlineEye className="w-4 h-4" />
                         </Link>
                         <button onClick={() => handleDelete(bill._id)} disabled={deleting === bill._id}
@@ -235,14 +257,10 @@ const DashboardPage = () => {
             </table>
           </div>
 
-          {/* Multi-bill indicator */}
           {bills.some(b => b.totalBillsInFile > 1) && (
-            <p className="text-xs text-slate-600 mt-2">
-              💡 Some uploads contained multiple bills — each row is a separate extracted bill.
-            </p>
+            <p className="text-xs text-slate-600 mt-2">💡 Some uploads contained multiple bills — each row is a separate extracted bill.</p>
           )}
 
-          {/* Pagination */}
           {pagination.pages > 1 && (
             <div className="flex items-center justify-between mt-6">
               <p className="text-xs text-slate-500">Page {pagination.page} of {pagination.pages}</p>

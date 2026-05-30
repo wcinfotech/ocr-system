@@ -1,9 +1,9 @@
 /**
  * ============================================
- * Multer Upload Middleware
+ * Multer Upload Middleware (v3)
  * ============================================
- * Handles file upload with validation for PDF, JPG, PNG
- * Supports single file upload with size limit
+ * Supports: multi-file upload (up to 20 files)
+ * Handles PDF, JPG, PNG with size validation
  */
 
 const multer = require('multer');
@@ -22,7 +22,6 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    // Generate unique filename: timestamp-random-originalname
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     const ext = path.extname(file.originalname).toLowerCase();
     const safeName = file.originalname
@@ -34,76 +33,62 @@ const storage = multer.diskStorage({
 
 // File filter - only allow PDF, JPG, PNG
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = [
-    'application/pdf',
-    'image/jpeg',
-    'image/jpg',
-    'image/png',
-  ];
-
+  const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
   const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png'];
   const ext = path.extname(file.originalname).toLowerCase();
 
   if (allowedTypes.includes(file.mimetype) && allowedExtensions.includes(ext)) {
     cb(null, true);
   } else {
-    cb(
-      new Error(
-        `Invalid file type: ${file.mimetype}. Only PDF, JPG, and PNG files are allowed.`
-      ),
-      false
-    );
+    cb(new Error(`Invalid file type: ${file.mimetype}. Only PDF, JPG, and PNG files are allowed.`), false);
   }
 };
 
-// Max file size from env or default 10MB
-const maxSize = parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024;
+const maxSize = parseInt(process.env.MAX_FILE_SIZE) || 50 * 1024 * 1024; // 50MB default
+const maxFiles = parseInt(process.env.MAX_FILES) || 20;
 
-// Multer upload instance
-const upload = multer({
-  storage,
-  fileFilter,
-  limits: {
-    fileSize: maxSize,
-  },
-});
+const upload = multer({ storage, fileFilter, limits: { fileSize: maxSize } });
 
-// Middleware wrapper with error handling
-const uploadMiddleware = (req, res, next) => {
+// ── Single file upload middleware (backward compatible) ──
+const singleUploadMiddleware = (req, res, next) => {
   const singleUpload = upload.single('billFile');
-
   singleUpload(req, res, (err) => {
     if (err instanceof multer.MulterError) {
-      // Multer-specific errors
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({
-          success: false,
-          error: `File too large. Maximum size is ${maxSize / (1024 * 1024)}MB.`,
-        });
+        return res.status(400).json({ success: false, error: `File too large. Maximum size is ${maxSize / (1024 * 1024)}MB.` });
       }
-      return res.status(400).json({
-        success: false,
-        error: `Upload error: ${err.message}`,
-      });
+      return res.status(400).json({ success: false, error: `Upload error: ${err.message}` });
     }
-
-    if (err) {
-      // Custom file filter errors
-      return res.status(400).json({
-        success: false,
-        error: err.message,
-      });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        error: 'No file uploaded. Please select a PDF, JPG, or PNG file.',
-      });
-    }
-
+    if (err) return res.status(400).json({ success: false, error: err.message });
+    if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded. Please select a PDF, JPG, or PNG file.' });
     next();
   });
 };
 
-module.exports = uploadMiddleware;
+// ── Multi-file upload middleware (v3) ──
+const multiUploadMiddleware = (req, res, next) => {
+  const multiUpload = upload.array('billFiles', maxFiles);
+  multiUpload(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ success: false, error: `File too large. Maximum size is ${maxSize / (1024 * 1024)}MB.` });
+      }
+      if (err.code === 'LIMIT_FILE_COUNT') {
+        return res.status(400).json({ success: false, error: `Too many files. Maximum is ${maxFiles} files at once.` });
+      }
+      if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+        return res.status(400).json({ success: false, error: `Unexpected field name. Use 'billFiles' for multi-upload.` });
+      }
+      return res.status(400).json({ success: false, error: `Upload error: ${err.message}` });
+    }
+    if (err) return res.status(400).json({ success: false, error: err.message });
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ success: false, error: 'No files uploaded. Please select PDF, JPG, or PNG files.' });
+    }
+    next();
+  });
+};
+
+module.exports = singleUploadMiddleware;
+module.exports.singleUpload = singleUploadMiddleware;
+module.exports.multiUpload = multiUploadMiddleware;

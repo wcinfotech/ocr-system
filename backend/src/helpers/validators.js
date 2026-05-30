@@ -1,8 +1,13 @@
 /**
  * ============================================
- * Validation Helper (v2)
+ * Validation Helper (v3) — Production
  * ============================================
  * Validates and cleans extracted bill fields
+ *
+ * v3 Upgrades:
+ * - SKU cleaner that preserves spaces and special chars
+ * - HSN validator
+ * - Amount cross-validation
  */
 
 /** Parse date string into a Date object */
@@ -97,18 +102,48 @@ const cleanVendorName = (name) => {
   return cleaned.substring(0, 100);
 };
 
-/** Clean any ID field (invoice, order, AWB, SKU) */
+/** Clean any ID field (invoice, order, AWB) */
 const cleanIdField = (val) => {
   if (!val) return null;
   let cleaned = val.trim().replace(/[\r\n]+/g, '').replace(/\s+/g, '')
     .replace(/^[:\-\s]+/, '').replace(/[:\-\s]+$/, '');
-  
+
   // Clean trailing noise words like Invoice, Date, Tax, Gst, etc.
   cleaned = cleaned.replace(/(?:invoice|date|tax|gst|billing|shipping).*$/i, '');
   cleaned = cleaned.replace(/[:\-\s]+$/, '');
-  
+
   if (cleaned.length < 2) return null;
   return cleaned.substring(0, 60);
+};
+
+/**
+ * Clean SKU field — preserves spaces, @, hyphens for multi-word SKUs
+ * Very different from cleanIdField
+ */
+const cleanSkuField = (val) => {
+  if (!val) return null;
+  let cleaned = val.trim()
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[:\-\s|]+/, '')
+    .replace(/[:\-\s|]+$/, '');
+
+  // Remove trailing noise words
+  const { SKU_NOISE_WORDS } = require('./regexPatterns');
+  cleaned = cleaned.replace(SKU_NOISE_WORDS, '').trim();
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  cleaned = cleaned.replace(/^[\-\s@]+/, '').replace(/[\-\s@]+$/, '');
+
+  if (cleaned.length < 2) return null;
+  return cleaned.substring(0, 80);
+};
+
+/** Validate HSN code */
+const validateHSN = (hsnStr) => {
+  if (!hsnStr) return null;
+  const cleaned = hsnStr.replace(/\s+/g, '').trim();
+  if (/^\d{4,8}$/.test(cleaned)) return cleaned;
+  return null;
 };
 
 /** Parse integer (for qty) */
@@ -121,5 +156,5 @@ const parseInteger = (val) => {
 
 module.exports = {
   parseDate, isValidDate, parseAmount, validateGST,
-  cleanVendorName, cleanIdField, parseInteger,
+  cleanVendorName, cleanIdField, cleanSkuField, validateHSN, parseInteger,
 };

@@ -53,18 +53,22 @@ const BillDetailPage = () => {
   if (loading) return <div className="flex items-center justify-center py-32"><div className="spinner" /></div>;
   if (!bill) return null;
 
-  const ConfBadge = ({ level }) => <span className={`badge badge-${level} ml-2 text-[10px]`}>{level}</span>;
+  const ConfBadge = ({ level }) => {
+    if (typeof level === 'number') {
+      const cls = level >= 80 ? 'badge-high' : level >= 40 ? 'badge-medium' : level > 0 ? 'badge-low' : 'badge-none';
+      return <span className={`badge ${cls} ml-2 text-[10px]`}>{level}%</span>;
+    }
+    return <span className={`badge badge-${level} ml-2 text-[10px]`}>{level}</span>;
+  };
 
   const Row = ({ label, value, confidence, mono, color }) => (
     <div className="flex items-start justify-between py-2.5 border-b border-white/5 last:border-0">
       <span className="text-xs text-slate-500 shrink-0 w-32">{label}</span>
       <div className="flex items-center gap-2 text-right">
-        <span className={`text-sm font-medium ${
-          value ? (mono ? 'font-mono text-cyan-400' : color || 'text-slate-200') : 'text-slate-600 italic'
-        }`}>
+        <span className={`text-sm font-medium ${value ? (mono ? 'font-mono text-cyan-400' : color || 'text-slate-200') : 'text-slate-600 italic'}`}>
           {value || 'Not found'}
         </span>
-        {confidence && <ConfBadge level={confidence} />}
+        {confidence !== undefined && confidence !== null && <ConfBadge level={confidence} />}
       </div>
     </div>
   );
@@ -137,8 +141,7 @@ const BillDetailPage = () => {
             <Row label="Date" value={bill.billDate} confidence={bill.extractionConfidence?.billDate} />
             <Row label="Amount" value={fmtAmt(bill.amount)} confidence={bill.extractionConfidence?.amount} color="text-emerald-400" />
             <Row label="Vendor" value={bill.vendorName} confidence={bill.extractionConfidence?.vendorName} />
-            <Row label="Vendor Details" value={bill.vendorDetails} />
-            <Row label="GST Number" value={bill.gstNumber} mono />
+            <Row label="GST Number" value={bill.gstNumber} confidence={bill.extractionConfidence?.gstNumber} mono />
             <Row label="Tax Amount" value={fmtAmt(bill.taxAmount)} />
           </div>
 
@@ -153,10 +156,48 @@ const BillDetailPage = () => {
             <Row label="Payment" value={bill.payment} confidence={bill.extractionConfidence?.payment}
               color={bill.payment === 'COD' ? 'text-amber-400' : 'text-emerald-400'} />
             <Row label="SKU" value={bill.sku} confidence={bill.extractionConfidence?.sku} mono />
-            <Row label="Quantity" value={bill.qty?.toString()} confidence={bill.extractionConfidence?.qty} />
+            <Row label="Quantity" value={bill.totalQty?.toString() || bill.qty?.toString()} confidence={bill.extractionConfidence?.qty} />
           </div>
 
-          {/* Return Details (only for return bills) */}
+          {/* Line Items Table (v3) */}
+          {bill.items && bill.items.length > 0 && (
+            <div className="glass-card p-6">
+              <h3 className="text-sm font-semibold text-slate-300 mb-4">
+                📦 Line Items ({bill.items.length})
+              </h3>
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th><th>SKU / Description</th><th>HSN</th>
+                      <th>Qty</th><th>Taxable</th><th>Tax</th><th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bill.items.map((item, idx) => (
+                      <tr key={idx}>
+                        <td className="text-slate-500">{idx + 1}</td>
+                        <td className="font-mono text-xs text-cyan-400 max-w-[200px]">
+                          {item.sku || item.description || '—'}
+                        </td>
+                        <td className="text-xs text-slate-400 font-mono">{item.hsn || '—'}</td>
+                        <td className="text-center text-slate-300">{item.qty || '—'}</td>
+                        <td className="text-xs text-slate-400">{item.taxableValue ? fmtAmt(item.taxableValue) : '—'}</td>
+                        <td className="text-xs text-slate-400">{item.tax ? fmtAmt(item.tax) : '—'}</td>
+                        <td className="text-xs text-emerald-400 font-medium">{item.total ? fmtAmt(item.total) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-end gap-6 mt-3 text-xs">
+                <span className="text-slate-500">Total Items: <strong className="text-slate-300">{bill.totalItems}</strong></span>
+                <span className="text-slate-500">Total Qty: <strong className="text-slate-300">{bill.totalQty}</strong></span>
+              </div>
+            </div>
+          )}
+
+          {/* Return Details */}
           {bill.billType === 'return' && (
             <div className="glass-card p-6 border-red-500/10">
               <h3 className="text-sm font-semibold text-red-400 mb-4">↩ Return Details</h3>
@@ -210,6 +251,40 @@ const BillDetailPage = () => {
                   <span className="text-slate-300 text-xs">{bill.billIndex} of {bill.totalBillsInFile}</span>
                 </div>
               )}
+              {bill.cloudinaryUrl && (
+                <div className="pt-2 border-t border-white/5">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-slate-500">Storage</span>
+                    <span className="badge bg-sky-500/15 text-sky-400 text-[10px]">☁️ Cloud</span>
+                  </div>
+                  <a href={bill.cloudinaryUrl} target="_blank" rel="noopener noreferrer"
+                    className="block w-full text-center py-2 px-3 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-xs font-medium transition-colors">
+                    📄 View Original File
+                  </a>
+                </div>
+              )}
+              {!bill.cloudinaryUrl && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Storage</span>
+                  <span className="text-slate-500 text-xs">💾 Local</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-slate-500">OCR Used</span>
+                <span className="text-slate-300 text-xs">{bill.ocrUsed ? '✅ Yes' : '❌ No'}</span>
+              </div>
+              {bill.pagesProcessed > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Pages</span>
+                  <span className="text-slate-300 text-xs">{bill.pagesProcessed}</span>
+                </div>
+              )}
+              {bill.processingTimeMs > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Processing</span>
+                  <span className="text-slate-300 text-xs">{(bill.processingTimeMs / 1000).toFixed(1)}s</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-slate-500">Uploaded</span>
                 <span className="text-slate-300 text-xs">{new Date(bill.createdAt).toLocaleString('en-IN')}</span>
@@ -221,12 +296,19 @@ const BillDetailPage = () => {
           <div className="glass-card p-6">
             <h3 className="text-sm font-semibold text-slate-300 mb-4">Extraction Confidence</h3>
             <div className="space-y-2">
-              {bill.extractionConfidence && Object.entries(bill.extractionConfidence).map(([field, level]) => (
-                <div key={field} className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500 capitalize">{field.replace(/([A-Z])/g, ' $1').trim()}</span>
-                  <span className={`badge badge-${level} text-[10px]`}>{level}</span>
-                </div>
-              ))}
+              {bill.extractionConfidence && Object.entries(bill.extractionConfidence).map(([field, level]) => {
+                const isNum = typeof level === 'number';
+                const cls = isNum
+                  ? (level >= 80 ? 'badge-high' : level >= 40 ? 'badge-medium' : level > 0 ? 'badge-low' : 'badge-none')
+                  : `badge-${level}`;
+                const display = isNum ? `${level}%` : level;
+                return (
+                  <div key={field} className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500 capitalize">{field.replace(/([A-Z])/g, ' $1').trim()}</span>
+                    <span className={`badge ${cls} text-[10px]`}>{display}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

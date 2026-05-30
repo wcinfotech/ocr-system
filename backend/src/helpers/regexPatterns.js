@@ -1,9 +1,15 @@
 /**
  * ============================================
- * Regex Patterns Helper (v2)
+ * Regex Patterns Helper (v3) — Production
  * ============================================
  * E-commerce bill extraction patterns
  * Supports: Amazon, Flipkart, Meesho, etc.
+ * 
+ * v3 Upgrades:
+ * - Expanded SKU patterns for multi-word, @, spaces
+ * - HSN code extraction
+ * - Multi-item row parsing
+ * - Taxable value patterns
  */
 
 // ── Invoice / Bill Number ──
@@ -59,12 +65,24 @@ const AMOUNT_PATTERNS = [
 
 // ── AWB / Tracking Number ──
 const AWB_PATTERNS = [
+  // Labeled AWB patterns
   /(?:awb\s*(?:no|number|#)?\.?\s*[:\-]?\s*)([A-Z0-9]{6,30})/i,
   /(?:tracking\s*(?:no|number|#|id)?\.?\s*[:\-]?\s*)([A-Z0-9]{6,30})/i,
   /(?:waybill\s*(?:no|number|#)?\.?\s*[:\-]?\s*)([A-Z0-9]{6,30})/i,
   /(?:shipment\s*(?:no|number|#|id)?\.?\s*[:\-]?\s*)([A-Z0-9]{6,30})/i,
   /(?:consignment\s*(?:no|number|#)?\.?\s*[:\-]?\s*)([A-Z0-9]{6,30})/i,
   /(?:lr\s*(?:no|number|#)?\.?\s*[:\-]?\s*)([A-Z0-9]{6,30})/i,
+
+  // Flipkart E-kart AWB: FMPC/FMPP followed by digits
+  /\b(FM[A-Z]{2}\d{8,14})\b/i,
+
+  // Meesho / Xpressbees / Delhivery — bare long tracking number (12-18 digits)
+  // near delivery partner mentions
+  /(?:xpress\s*bees|delhivery|ecom\s*express|blue\s*dart|ekart|e[\-\s]?kart|shadowfax|dtdc)[\s\S]{0,80}?\b(\d{12,18})\b/i,
+  /\b(\d{12,18})\b[\s\S]{0,80}?(?:xpress\s*bees|delhivery|ecom\s*express|blue\s*dart|ekart|e[\-\s]?kart|shadowfax|dtdc)/i,
+
+  // Bare tracking number on its own line (12+ digits, not phone/order)
+  /(?:^|\n)\s*(\d{12,18})\s*(?:\n|$)/m,
 ];
 
 // ── Delivery Partner Detection ──
@@ -107,14 +125,54 @@ const PAYMENT_PATTERNS = [
   /\b(Prepaid)\b/i,
 ];
 
-// ── SKU ──
+// ════════════════════════════════════════════
+// SKU PATTERNS (v3) — DRAMATICALLY IMPROVED
+// ════════════════════════════════════════════
+// Supports:
+//   PARI-03 MAROON, RJ-04 @ GREEN, RAJA RANI-YELLOW
+//   RJ-03 MAROON, SKU with spaces, @, hyphens, underscores
+//   ASIN (Amazon), FSN (Flipkart)
+
 const SKU_PATTERNS = [
-  /(?:sku\s*(?:no|number|#|id|code)?\.?\s*[:\-]?\s*)([A-Z0-9\-_]{3,30})/i,
-  /(?:product\s*(?:code|id|sku)\.?\s*[:\-]?\s*)([A-Z0-9\-_]{3,30})/i,
-  /(?:item\s*(?:code|id|sku)\.?\s*[:\-]?\s*)([A-Z0-9\-_]{3,30})/i,
+  // === PRIORITY 1: Meesho — "SKU: PARI-03 MAROON" ===
+  /(?:sku\s*[:\-]\s*)([A-Za-z][A-Za-z0-9\-]+\s*@?\s*[A-Z]+)\s*$/im,
+  /(?:sku\s*[:\-]\s*)([A-Za-z][A-Za-z0-9\-]+(?:\s+[A-Z]+)?)\s*$/im,
+
+  // === PRIORITY 2: Amazon ASIN inside parentheses — "| B08MLHZ86G ( LUNCH-BOX )" ===
+  /\|\s*([A-Z0-9]{10})\s*\(/,
+  /\b([A-Z0-9]{10})\s*\(\s*([A-Za-z][A-Za-z0-9\-_ ]{2,30})\s*\)/,
+
+  // === PRIORITY 3: Amazon — extract SKU code from inside parentheses "( LUNCH-BOX )" ===
+  /\(\s*([A-Za-z][A-Za-z0-9\-_]{2,30})\s*\)/,
+
+  // === PRIORITY 4: Flipkart — "SKU ID | Description" then pipe row "PRINT - GAJRI | vendor" ===
+  /(?:sku\s*id\s*\|\s*description)\s*(?:qty)?\s*\n\s*\d*\s*([A-Za-z][A-Za-z0-9\-_ ]{2,50})\s*\|/im,
+  // Flipkart pipe row: "1PRINT - GAJRI | RJTAJ FAB..." (digit then SKU then pipe)
+  /\d([A-Z][A-Z\-_ ]{2,40})\s*\|\s*[A-Z]/,
+
+  // === PRIORITY 5: Explicit SKU label with multi-word value ===
+  /(?:sku\s*(?:no|number|#|id|code)?\.?\s*[:\-|]\s*)([A-Za-z0-9][A-Za-z0-9\-_@ ]{2,60}?)(?:\s*(?:\n|\||qty|quantity|hsn|price|rate|amount|size|tax|igst|cgst|sgst|total|rs|inr|₹|\d{4,}))/i,
+  /(?:sku\s*(?:no|number|#|id|code)?\.?\s*[:\-|]\s*)([A-Za-z][A-Za-z0-9\-_@ ]{2,50})\s*$/im,
+
+  // === PRIORITY 6: ASIN with label ===
   /(?:asin\s*[:\-]?\s*)([A-Z0-9]{10})/i,
+
+  // === PRIORITY 7: FSN (Flipkart) ===
   /(?:fsn\s*[:\-]?\s*)([A-Z0-9]{10,20})/i,
+
+  // === PRIORITY 8: Seller/Merchant SKU ===
+  /(?:seller\s*sku\s*(?:id)?\.?\s*[:\-|]\s*)([A-Za-z0-9][A-Za-z0-9\-_@ ]{2,50})/i,
+  /(?:merchant\s*sku\s*[:\-|]\s*)([A-Za-z0-9][A-Za-z0-9\-_@ ]{2,50})/i,
+
+  // === PRIORITY 9: Product/Item code label ===
+  /(?:product\s*(?:code|id|sku)?\.?\s*[:\-|]\s*)([A-Za-z0-9][A-Za-z0-9\-_@ ]{2,60}?)(?:\s*(?:\n|\||qty|quantity|hsn|price|rate|amount|size|tax))/i,
+
+  // === PRIORITY 10: Fallback — bare SKU label ===
+  /(?:sku\s*[:\-]?\s*)([A-Z0-9][A-Z0-9\-_]{2,30})/i,
 ];
+
+// ── SKU cleaning patterns (what to strip from extracted SKU) ──
+const SKU_NOISE_WORDS = /\b(qty|quantity|hsn|price|rate|tax|igst|cgst|sgst|total|amount|rs|inr|invoice|date|bill|size|color|colour|free\s*size|pcs|pieces|unit|description|product|item)\b/gi;
 
 // ── Quantity ──
 const QTY_PATTERNS = [
@@ -124,8 +182,15 @@ const QTY_PATTERNS = [
   /(?:qty|quantity|ordered)\.?\s*[:\-]?\s*(\d{1,4})\b/i,
   /(?:qty|quantity)\s+(\d{1,4})\b/i,
   /(?:total\s*(?:qty|quantity|items|units))\s*[:\-]?\s*(\d{1,4})/i,
-  /(?:no\.\s*of\s*(?:items|units|pcs|pieces))\s*[:\-]?\s*(\d{1,4})/i,
+  /(?:no\.?\s*of\s*(?:items|units|pcs|pieces))\s*[:\-]?\s*(\d{1,4})/i,
   /(?:pcs|pieces)\s*[:\-]?\s*(\d{1,4})/i,
+];
+
+// ── HSN Code ──
+const HSN_PATTERNS = [
+  /(?:hsn\s*(?:code|no|number|#)?\.?\s*[:\-|]?\s*)(\d{4,8})/i,
+  /(?:hsn\/sac\s*(?:code)?\.?\s*[:\-|]?\s*)(\d{4,8})/i,
+  /(?:sac\s*(?:code|no)?\.?\s*[:\-|]?\s*)(\d{4,8})/i,
 ];
 
 // ── GST Number ──
@@ -141,6 +206,12 @@ const TAX_AMOUNT_PATTERNS = [
   /(?:cgst)\s*(?:@?\s*\d+%?)?\s*[:\-]?\s*(?:(?:Rs\.?|INR|₹|\$)\s*)?([0-9,]+\.?\d{0,2})/i,
   /(?:sgst)\s*(?:@?\s*\d+%?)?\s*[:\-]?\s*(?:(?:Rs\.?|INR|₹|\$)\s*)?([0-9,]+\.?\d{0,2})/i,
   /(?:igst)\s*(?:@?\s*\d+%?)?\s*[:\-]?\s*(?:(?:Rs\.?|INR|₹|\$)\s*)?([0-9,]+\.?\d{0,2})/i,
+];
+
+// ── Taxable Value (per-item) ──
+const TAXABLE_VALUE_PATTERNS = [
+  /(?:taxable\s*(?:value|amount|amt))\s*[:\-]?\s*(?:(?:Rs\.?|INR|₹|\$)\s*)?([0-9,]+\.?\d{0,2})/i,
+  /(?:assessable\s*(?:value|amount))\s*[:\-]?\s*(?:(?:Rs\.?|INR|₹|\$)\s*)?([0-9,]+\.?\d{0,2})/i,
 ];
 
 // ── Vendor Name ──
@@ -173,6 +244,28 @@ const RETURN_DATE_PATTERNS = [
   /(?:reverse\s*(?:pickup)?\s*date\s*[:\-]?\s*)([\d]{1,2}[\-\/\.][\d]{1,2}[\-\/\.][\d]{2,4})/i,
 ];
 
+// ══════════════════════════════════════════════
+// MULTI-ITEM TABLE ROW PATTERNS
+// ══════════════════════════════════════════════
+// These detect tabular item rows in invoices
+
+// Pattern: Sr | Description/SKU | HSN | Qty | Rate | Taxable | Tax | Total
+// Flexible enough for Meesho, Flipkart, Amazon formats
+const ITEM_TABLE_PATTERNS = {
+  // Detects table header to know where items start
+  headerPatterns: [
+    /(?:sr\.?\s*(?:no)?|s\.?\s*no|#)\s*[\|]?\s*(?:description|product|item|particular|sku)/i,
+    /(?:description|product\s*name|item|sku)\s*[\|]?\s*(?:hsn|qty|quantity|rate|price)/i,
+  ],
+  // Row pattern: captures (sr, description, hsn, qty, rate, taxableValue, tax, total)
+  rowPatterns: [
+    // Pipe-delimited: "1 | PARI-03 MAROON | 62114403 | 1 | 1609.32 | 1609.32 | 80.47 | 1689.79"
+    /^\s*(\d{1,3})\s*\|\s*(.+?)\s*\|\s*(\d{4,8})?\s*\|\s*(\d{1,4})\s*\|\s*[\d,]+\.?\d*\s*\|\s*([\d,]+\.?\d*)\s*\|\s*([\d,]+\.?\d*)\s*\|\s*([\d,]+\.?\d*)/m,
+    // Space/tab delimited with amounts
+    /^\s*(\d{1,3})\s+(.+?)\s+(\d{4,8})?\s+(\d{1,4})\s+[\d,]+\.?\d*\s+([\d,]+\.?\d*)\s+([\d,]+\.?\d*)\s+([\d,]+\.?\d*)/m,
+  ],
+};
+
 // ── Multi-bill Splitting Patterns ──
 // These mark the START of a new bill in a multi-bill PDF
 const BILL_SEPARATOR_PATTERNS = [
@@ -192,13 +285,17 @@ module.exports = {
   SUPPLIER_PLATFORMS,
   PAYMENT_PATTERNS,
   SKU_PATTERNS,
+  SKU_NOISE_WORDS,
   QTY_PATTERNS,
+  HSN_PATTERNS,
   GST_NUMBER_PATTERNS,
   TAX_AMOUNT_PATTERNS,
+  TAXABLE_VALUE_PATTERNS,
   VENDOR_NAME_PATTERNS,
   RETURN_TYPE_PATTERNS,
   RETURN_STATUS_PATTERNS,
   CLAIM_PATTERNS,
   RETURN_DATE_PATTERNS,
+  ITEM_TABLE_PATTERNS,
   BILL_SEPARATOR_PATTERNS,
 };
