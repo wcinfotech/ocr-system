@@ -73,8 +73,8 @@ app.use(errorHandler);
 // ============================================
 // Server Start
 // ============================================
-const server = app.listen(PORT, () => {
-  console.log(`\n🚀 Bill Scanner API running on http://localhost:${PORT}`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n🚀 Bill Scanner API running on http://0.0.0.0:${PORT}`);
   console.log(`📁 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🗄️  MongoDB: ${process.env.MONGODB_URI}\n`);
 });
