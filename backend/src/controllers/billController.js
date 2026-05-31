@@ -202,11 +202,31 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
       return;
     }
 
+    let cloudinaryUrl = null;
+    let cloudinaryPublicId = null;
+    if (useCloudinary) {
+      try {
+        console.log(`☁️  Uploading failed file ${fileName} to Cloudinary...`);
+        const cloudResult = await uploadToCloudinary(filePath);
+        cloudinaryUrl = cloudResult.url;
+        cloudinaryPublicId = cloudResult.publicId;
+      } catch (cloudErr) {
+        console.warn(`⚠️  Failed file Cloudinary upload failed: ${cloudErr.message}`);
+      }
+    }
+
+    // Clean up local temp file
+    if (fs.existsSync(filePath)) {
+      try { fs.unlinkSync(filePath); console.log(`🗑️  Local temp file cleaned on failure: ${fileName}`); } catch { /* ignore */ }
+    }
+
     await Bill.findByIdAndUpdate(placeholderId, {
       status: 'failed',
       errorMessage: error.message,
       processingTimeMs: Date.now() - startTime,
       retryCount,
+      cloudinaryUrl,
+      cloudinaryPublicId,
     });
   }
 };
@@ -379,7 +399,7 @@ const exportBills = async (req, res) => {
       if (filters.endDate) query.parsedBillDate.$lte = new Date(filters.endDate);
     }
 
-    const bills = await Bill.find(query).sort({ createdAt: -1 }).limit(5000).select('-rawExtractedText');
+    const bills = await Bill.find(query).sort({ createdAt: -1 }).limit(5040).select('-rawExtractedText');
 
     if (format === 'csv') {
       const headers = ['Invoice No', 'Order No', 'Date', 'Platform', 'Vendor', 'Amount', 'SKU', 'Qty', 'Items', 'AWB', 'Delivery Partner', 'Payment', 'GST', 'Tax', 'Type', 'Status'];

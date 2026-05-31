@@ -83,10 +83,14 @@ const parseAmount = (amountStr) => {
 /** Validate GST number */
 const validateGST = (gstStr) => {
   if (!gstStr) return null;
-  // Remove all spaces and convert to uppercase
-  const cleaned = gstStr.replace(/\s+/g, '').toUpperCase();
-  // Standard 15-digit GSTIN pattern
-  if (/^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d][A-Z\d][A-Z\d]$/.test(cleaned)) {
+  // Remove all spaces, trailing 'S' (OCR artifact), and convert to uppercase
+  let cleaned = gstStr.replace(/\s+/g, '').toUpperCase();
+  // Remove trailing 'S' that OCR sometimes appends (e.g. "24KLSPS0845E1ZNS")
+  if (cleaned.length === 16 && cleaned.endsWith('S')) {
+    cleaned = cleaned.slice(0, 15);
+  }
+  // Standard 15-digit GSTIN: 2 digits (state) + 5 alpha (PAN) + 4 digits + 1 alpha + 1 digit + 1 alphanumeric (check) + 1 alphanumeric
+  if (/^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]{2}$/.test(cleaned)) {
     const stateCode = parseInt(cleaned.substring(0, 2));
     if (stateCode >= 1 && stateCode <= 37) return cleaned;
   }

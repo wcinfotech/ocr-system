@@ -24,6 +24,9 @@ const DashboardPage = () => {
   const [search, setSearch] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [startDateInput, setStartDateInput] = useState('');
+  const [endDateInput, setEndDateInput] = useState('');
   const [platform, setPlatform] = useState('');
   const [billType, setBillType] = useState('');
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 25, pages: 0 });
@@ -84,8 +87,23 @@ const DashboardPage = () => {
     } catch { toast.error('Export failed'); }
   };
 
-  const handleSearch = (e) => { e.preventDefault(); fetchBills(1); };
-  const clearFilters = () => { setSearch(''); setStartDate(''); setEndDate(''); setPlatform(''); setBillType(''); };
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setSearch(searchInput);
+    setStartDate(startDateInput);
+    setEndDate(endDateInput);
+  };
+
+  const clearFilters = () => {
+    setSearchInput('');
+    setStartDateInput('');
+    setEndDateInput('');
+    setSearch('');
+    setStartDate('');
+    setEndDate('');
+    setPlatform('');
+    setBillType('');
+  };
 
   const StatusBadge = ({ status }) => (
     <span className={`badge badge-${status}`}>
@@ -159,7 +177,7 @@ const DashboardPage = () => {
           <div className="relative flex-1">
             <HiOutlineSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
             <input type="text" placeholder="Search vendor, invoice, order, AWB, SKU..."
-              value={search} onChange={(e) => setSearch(e.target.value)} className="input-field pl-9" />
+              value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="input-field pl-9" />
           </div>
           <button type="submit" className="btn-primary whitespace-nowrap">Search</button>
         </div>
@@ -167,10 +185,10 @@ const DashboardPage = () => {
           <div className="flex flex-wrap gap-3 pt-2 border-t border-white/5">
             <div className="relative">
               <HiOutlineCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
-              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input-field pl-9 w-40" />
+              <input type="date" value={startDateInput} onChange={(e) => setStartDateInput(e.target.value)} className="input-field pl-9 w-40" />
             </div>
             <span className="text-slate-600 self-center">to</span>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input-field w-40" />
+            <input type="date" value={endDateInput} onChange={(e) => setEndDateInput(e.target.value)} className="input-field w-40" />
             <select value={platform} onChange={(e) => setPlatform(e.target.value)} className="input-field w-40">
               {PLATFORMS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
             </select>
@@ -179,7 +197,7 @@ const DashboardPage = () => {
               <option value="regular">Regular</option>
               <option value="return">Return</option>
             </select>
-            {(search || startDate || endDate || platform || billType) && (
+            {(searchInput || startDateInput || endDateInput || platform || billType) && (
               <button type="button" onClick={clearFilters} className="text-xs text-red-400 hover:text-red-300 self-center whitespace-nowrap">✕ Clear All</button>
             )}
           </div>

@@ -27,14 +27,50 @@ const {
 const splitIntoBills = (rawText) => {
   if (!rawText || rawText.trim().length < 20) return [rawText];
 
-  // Strategy 1: Form-feed characters
-  let segments = rawText.split(/\f/).map(s => s.trim()).filter(s => s.length > 30);
-  if (segments.length > 1) {
-    const valid = segments.filter(seg => hasInvoiceMarker(seg));
-    if (valid.length > 0) return valid.length > 1 ? valid : valid;
+  // Strategy 1: Smart Page-Level Grouping for Multi-Page PDFs (Form-Feed separated)
+  let rawPages = rawText.split(/\f/).map(s => s.trim()).filter(s => s.length > 20);
+  if (rawPages.length > 1) {
+    const groups = [];
+    let currentGroup = [];
+    let seenInvoices = new Set();
+    let seenOrders = new Set();
+
+    for (const page of rawPages) {
+      if (!hasInvoiceMarker(page)) continue; // skip completely empty/junk pages
+
+      // Find invoice and order numbers on this page
+      let pageInv = null;
+      let pageOrd = null;
+
+      for (const p of INVOICE_NUMBER_PATTERNS) {
+        const m = page.match(p);
+        if (m && m[1]) { pageInv = m[1].trim().toLowerCase(); break; }
+      }
+      for (const p of ORDER_NUMBER_PATTERNS) {
+        const m = page.match(p);
+        if (m && m[1]) { pageOrd = m[1].trim().toLowerCase(); break; }
+      }
+
+      let isDifferent = false;
+      if (pageInv && seenInvoices.size > 0 && !seenInvoices.has(pageInv)) isDifferent = true;
+      if (pageOrd && seenOrders.size > 0 && !seenOrders.has(pageOrd)) isDifferent = true;
+
+      if (isDifferent) {
+        if (currentGroup.length > 0) groups.push(currentGroup.join('\n\f\n'));
+        currentGroup = [page];
+        seenInvoices = new Set(pageInv ? [pageInv] : []);
+        seenOrders = new Set(pageOrd ? [pageOrd] : []);
+      } else {
+        currentGroup.push(page);
+        if (pageInv) seenInvoices.add(pageInv);
+        if (pageOrd) seenOrders.add(pageOrd);
+      }
+    }
+    if (currentGroup.length > 0) groups.push(currentGroup.join('\n\f\n'));
+    if (groups.length > 0) return groups;
   }
 
-  // Strategy 2: Bill headers
+  // Strategy 2: Bill headers (for single-page/raw concatenated text)
   const headerPattern = /(?=(?:^|\n)\s*(?:TAX\s*INVOICE|INVOICE\s*$|BILL\s*OF\s*SUPPLY|CREDIT\s*NOTE|DEBIT\s*NOTE|RETURN\s*(?:INVOICE|NOTE))\s*(?:\n|$))/gim;
   let raw2 = rawText.split(headerPattern);
   if (raw2.length > 0 && raw2[0].trim().length > 0 && !hasInvoiceMarker(raw2[0])) {
@@ -50,7 +86,7 @@ const splitIntoBills = (rawText) => {
   const invoiceRepeat = /(?=(?:invoice\s*(?:no|number|#)|bill\s*(?:no|number)|order\s*(?:no|number|id))\s*[:\-]?\s*[A-Z0-9])/gi;
   const matches = [...rawText.matchAll(invoiceRepeat)];
   if (matches.length > 1) {
-    segments = [];
+    let segments = [];
     for (let i = 0; i < matches.length; i++) {
       const start = i === 0 ? 0 : matches[i].index;
       const end = i + 1 < matches.length ? matches[i + 1].index : rawText.length;
@@ -62,7 +98,7 @@ const splitIntoBills = (rawText) => {
 
   // Strategy 4: Separator lines
   const sepPattern = /\n\s*[-=]{15,}\s*\n/;
-  segments = rawText.split(sepPattern).map(s => s.trim()).filter(s => s.length > 30);
+  let segments = rawText.split(sepPattern).map(s => s.trim()).filter(s => s.length > 30);
   if (segments.length > 1) {
     const valid = segments.filter(seg => hasInvoiceMarker(seg));
     if (valid.length > 1) return valid;
@@ -303,12 +339,24 @@ const extractSingleBill = (text) => {
 
 const extractBillData = (rawText) => {
   const segments = splitIntoBills(rawText);
-  const bills = segments.map((segment, idx) => {
+  const allBills = segments.map((segment, idx) => {
     const extracted = extractSingleBill(segment);
     extracted.rawExtractedText = segment;
     extracted.billIndex = idx + 1;
     return extracted;
   });
+
+  // Filter out empty/junk segments that have no useful data
+  const validBills = allBills.filter(b =>
+    b.invoiceNumber || b.orderNumber || b.amount || b.sku
+  );
+
+  // If all were filtered out, keep at least the first one
+  const bills = validBills.length > 0 ? validBills : allBills.length > 0 ? [allBills[0]] : [];
+
+  // Re-index
+  bills.forEach((b, i) => { b.billIndex = i + 1; });
+
   return { bills, totalBills: bills.length };
 };
 
@@ -463,9 +511,17 @@ const detectDeliveryPartner = (text) => {
 };
 
 const extractPayment = (text) => {
+  // First try: "Mode of Payment:" which may span 2 lines (e.g. "Mode of Payment: Credit\nCard")
+  const modeMatch = text.match(/mode\s*of\s*payment\s*[:\-]?\s*([\s\S]{2,30}?)(?:\n\s*\n|\nSold|\nPayment|\nDate|\nInvoice)/i);
+  if (modeMatch && modeMatch[1]) {
+    const val = modeMatch[1].replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (val && !/^\d/.test(val) && val.length >= 2) return val;
+  }
   for (const pattern of PAYMENT_PATTERNS) {
     const match = text.match(pattern);
-    if (match && match[1]) return match[1].trim();
+    if (match && match[1]) {
+      return match[1].replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+    }
   }
   return null;
 };

@@ -195,8 +195,9 @@ const HSN_PATTERNS = [
 
 // ── GST Number ──
 const GST_NUMBER_PATTERNS = [
-  /(?:gst(?:in)?|gst\s*(?:no|number|#|reg)?)\s*[:\-]?\s*(\d{2}\s*[A-Z]{5}\s*\d{4}\s*[A-Z]\s*\d\s*[A-Z\d]\s*[A-Z\d]\s*[A-Z\d])/i,
-  /\b(\d{2}\s*[A-Z]{5}\s*\d{4}\s*[A-Z]\s*\d\s*[A-Z\d]\s*[A-Z\d]\s*[A-Z\d])\b/i,
+  /(?:gst(?:in)?|gst\s*(?:registration)?\s*(?:no|number|#|reg)?)\s*[:\-.]?\s*(\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]{2})/i,
+  /(?:gst|gstin)\s*[:\-.]?\s*(\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]{2})/i,
+  /\b(\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]{2})\b/,
 ];
 
 // ── Tax Amount ──
