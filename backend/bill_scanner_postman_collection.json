@@ -1,0 +1,331 @@
+{
+  "info": {
+    "_postman_id": "bill-scanner-ocr-api-collection",
+    "name": "Bill Scanner API",
+    "description": "Production Postman Collection for the Bill Scanner & OCR Extraction Engine",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "health"
+          ]
+        },
+        "description": "Checks if the API server is online and operational."
+      },
+      "response": []
+    },
+    {
+      "name": "Get Dashboard Stats",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/stats",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "stats"
+          ]
+        },
+        "description": "Fetch stats summary for the dashboard cards (Total bills, completed, processing, failed)."
+      },
+      "response": []
+    },
+    {
+      "name": "Get All Bills (Filtered & Paginated)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/bills?page=1&limit=25&search=&startDate=&endDate=&platform=&billType=",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "bills"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "1",
+              "description": "Current page number"
+            },
+            {
+              "key": "limit",
+              "value": "25",
+              "description": "Number of items per page"
+            },
+            {
+              "key": "search",
+              "value": "",
+              "description": "Filter by vendor, invoice number, order ID, AWB, SKU"
+            },
+            {
+              "key": "startDate",
+              "value": "",
+              "description": "YYYY-MM-DD"
+            },
+            {
+              "key": "endDate",
+              "value": "",
+              "description": "YYYY-MM-DD"
+            },
+            {
+              "key": "platform",
+              "value": "",
+              "description": "amazon, flipkart, meesho, etc."
+            },
+            {
+              "key": "billType",
+              "value": "",
+              "description": "regular or return"
+            }
+          ]
+        },
+        "description": "Retrieve list of bills with optional query parameters."
+      },
+      "response": []
+    },
+    {
+      "name": "Get Single Bill Details",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/bill/:id",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "bill",
+            ":id"
+          ],
+          "variable": [
+            {
+              "key": "id",
+              "value": "PLACEHOLDER_BILL_ID",
+              "description": "MongoDB Object ID of the bill"
+            }
+          ]
+        },
+        "description": "Fetch details of a single bill by ID."
+      },
+      "response": []
+    },
+    {
+      "name": "Get Batch Status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/batch/:batchId",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "batch",
+            ":batchId"
+          ],
+          "variable": [
+            {
+              "key": "batchId",
+              "value": "PLACEHOLDER_BATCH_ID",
+              "description": "Batch UUID returned during file upload"
+            }
+          ]
+        },
+        "description": "Checks the real-time processing status of all bills in a specific upload batch."
+      },
+      "response": []
+    },
+    {
+      "name": "Single File Upload",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "billFile",
+              "type": "file",
+              "src": [],
+              "description": "PDF or Image file (Max 10MB)"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/upload-bill",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "upload-bill"
+          ]
+        },
+        "description": "Upload a single bill PDF or Image. Starts background OCR / extraction."
+      },
+      "response": []
+    },
+    {
+      "name": "Batch Multi-File Upload",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "billFiles",
+              "type": "file",
+              "src": [],
+              "description": "Upload one or more bill PDFs or Images simultaneously"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/upload-bills",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "upload-bills"
+          ]
+        },
+        "description": "Upload multiple files in a single batch. Starts parallel background processing."
+      },
+      "response": []
+    },
+    {
+      "name": "Export Bills to CSV",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/export?format=csv&platform=&billType=&startDate=&endDate=",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "export"
+          ],
+          "query": [
+            {
+              "key": "format",
+              "value": "csv"
+            },
+            {
+              "key": "platform",
+              "value": ""
+            },
+            {
+              "key": "billType",
+              "value": ""
+            },
+            {
+              "key": "startDate",
+              "value": ""
+            },
+            {
+              "key": "endDate",
+              "value": ""
+            }
+          ]
+        },
+        "description": "Export filtered bills as a downloadable CSV file."
+      },
+      "response": []
+    },
+    {
+      "name": "Trigger DB Fields Migration",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/migrate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "migrate"
+          ]
+        },
+        "description": "Manually trigger background re-extraction / updates for all existing records in the database."
+      },
+      "response": []
+    },
+    {
+      "name": "Delete Bill",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/bill/:id",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "bill",
+            ":id"
+          ],
+          "variable": [
+            {
+              "key": "id",
+              "value": "PLACEHOLDER_BILL_ID"
+            }
+          ]
+        },
+        "description": "Delete a bill record from the database and permanently clean up its asset from Cloudinary."
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://ocr-system-production-c93c.up.railway.app",
+      "type": "string"
+    }
+  ]
+}

@@ -8,9 +8,16 @@
 const mongoose = require('mongoose');
 const dns = require('dns');
 
-// Force Google DNS to resolve MongoDB Atlas SRV records
+// Force Google DNS only in local development to resolve MongoDB Atlas SRV records
 // Fixes "querySrv ECONNREFUSED" when local DNS can't resolve Atlas hostnames
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    dns.setServers(['8.8.8.8', '8.8.4.4']);
+    console.log('🌐 Google DNS configured for development.');
+  } catch (dnsErr) {
+    console.warn('⚠️ Failed to set custom DNS servers:', dnsErr.message);
+  }
+}
 
 const connectDB = async () => {
   try {
