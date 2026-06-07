@@ -23,7 +23,7 @@ const UploadPage = () => {
     if (rejectedFiles.length > 0) {
       const err = rejectedFiles[0].errors[0];
       if (err.code === 'file-too-large') toast.error('File too large. Max 50MB per file.');
-      else if (err.code === 'file-invalid-type') toast.error('Invalid file type. Use PDF, JPG, or PNG.');
+      else if (err.code === 'file-invalid-type') toast.error('Invalid file type. Use PDF, JPG, PNG, or ZIP.');
       else toast.error(err.message);
       return;
     }
@@ -42,7 +42,13 @@ const UploadPage = () => {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'application/pdf': ['.pdf'], 'image/jpeg': ['.jpg', '.jpeg'], 'image/png': ['.png'] },
+    accept: {
+      'application/pdf': ['.pdf'],
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/png': ['.png'],
+      'application/zip': ['.zip'],
+      'application/x-zip-compressed': ['.zip']
+    },
     maxSize: MAX_SIZE,
     multiple: true,
   });
@@ -83,8 +89,15 @@ const UploadPage = () => {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
-  const getFileIcon = (type) => {
-    if (type === 'application/pdf') return <HiOutlineDocumentText className="w-8 h-8 text-red-400" />;
+  const getFileIcon = (file) => {
+    const type = file.type || '';
+    const name = file.name.toLowerCase();
+    if (type === 'application/pdf' || name.endsWith('.pdf')) {
+      return <HiOutlineDocumentText className="w-8 h-8 text-red-400" />;
+    }
+    if (type.includes('zip') || name.endsWith('.zip')) {
+      return <span className="text-3xl shrink-0">📦</span>;
+    }
     return <HiOutlinePhotograph className="w-8 h-8 text-cyan-400" />;
   };
 
@@ -150,7 +163,7 @@ const UploadPage = () => {
             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
               {files.map((file, index) => (
                 <div key={`${file.name}-${index}`} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] group">
-                  <div className="shrink-0">{getFileIcon(file.type)}</div>
+                  <div className="shrink-0">{getFileIcon(file)}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-slate-200 truncate">{file.name}</p>
                     <p className="text-xs text-slate-500">{formatSize(file.size)} • {file.type.split('/')[1]?.toUpperCase()}</p>

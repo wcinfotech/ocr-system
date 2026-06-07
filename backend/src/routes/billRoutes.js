@@ -10,6 +10,7 @@ const router = express.Router();
 const {
   uploadBill, uploadBills, getBills, getBillById,
   deleteBill, migrateBills, getBatchStatus, exportBills, getStats,
+  updateBill, reprocessBill, triggerCleanup,
 } = require('../controllers/billController');
 const uploadMiddleware = require('../middleware/upload');
 const { multiUpload } = require('../middleware/upload');
@@ -26,6 +27,12 @@ router.get('/bills', getBills);
 // GET /api/bill/:id - Get single bill details
 router.get('/bill/:id', getBillById);
 
+// PUT /api/bill/:id - Update manual corrections (v4)
+router.put('/bill/:id', updateBill);
+
+// POST /api/bill/:id/reprocess - Reprocess bill (v4)
+router.post('/bill/:id/reprocess', reprocessBill);
+
 // GET /api/batch/:batchId - Get batch processing status
 router.get('/batch/:batchId', getBatchStatus);
 
@@ -40,5 +47,8 @@ router.get('/migrate', migrateBills);
 
 // DELETE /api/bill/:id - Delete a bill
 router.delete('/bill/:id', deleteBill);
+
+// POST /api/cleanup - Manual file cleanup trigger
+router.post('/cleanup', triggerCleanup);
 
 module.exports = router;

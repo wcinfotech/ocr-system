@@ -223,7 +223,7 @@ const DashboardPage = () => {
                   <th>Type</th><th>Platform</th><th>Invoice No.</th><th>Order No.</th>
                   <th>Date</th><th>Vendor</th><th>Amount</th><th>AWB</th>
                   <th>Delivery</th><th>Payment</th><th>SKU</th>
-                  <th>Items</th><th>Qty</th><th>Status</th><th className="text-right">Actions</th>
+                  {/* <th>Items</th> */}<th>Qty</th><th>Status</th><th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -243,11 +243,11 @@ const DashboardPage = () => {
                     <td className="font-mono text-xs text-slate-400 max-w-[120px] truncate" title={bill.sku || ''}>
                       {fmt(bill.sku)}
                     </td>
-                    <td className="text-center">
+                    {/* <td className="text-center">
                       {bill.totalItems > 0 ? (
                         <span className="badge bg-indigo-500/15 text-indigo-400">{bill.totalItems}</span>
                       ) : '—'}
-                    </td>
+                    </td> */}
                     <td className="text-center text-slate-300">{bill.totalQty || bill.qty || '—'}</td>
                     <td><StatusBadge status={bill.status} /></td>
                     <td>

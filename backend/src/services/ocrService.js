@@ -1,62 +1,133 @@
 /**
  * ============================================
- * OCR Service (v3) - Tesseract.js + Sharp
+ * OCR & Barcode Service (v4) - Tesseract.js + Sharp + ZXing
  * ============================================
- * Enhanced with image preprocessing pipeline:
- * grayscale → threshold → sharpen → denoise
+ * Preprocessing: auto-rotate, grayscale, scale/DPI, contrast, sharpen
+ * Barcodes: Code128, EAN, UPC, QR, PDF417, DataMatrix
  */
 
 const Tesseract = require('tesseract.js');
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
+const { MultiFormatReader, RGBLuminanceSource, BinaryBitmap, HybridBinarizer } = require('@zxing/library');
 
 /**
- * Preprocess image for better OCR accuracy
- * @param {string} filePath - Path to the image file
- * @returns {Promise<string>} - Path to preprocessed image
+ * Preprocess image for maximum OCR accuracy
+ * @param {string|Buffer} imageInput - Path to the image file or Buffer
+ * @param {string} [outPath] - Path to save preprocessed image if input is a path
+ * @returns {Promise<string|Buffer>} - Preprocessed image path or buffer
  */
-const preprocessImage = async (filePath) => {
+const preprocessImage = async (imageInput, outPath = null) => {
   try {
-    const ext = path.extname(filePath).toLowerCase();
-    const dir = path.dirname(filePath);
-    const base = path.basename(filePath, ext);
-    const outPath = path.join(dir, `${base}_preprocessed.png`);
+    let image = sharp(imageInput);
+    const metadata = await image.metadata();
 
-    await sharp(filePath)
-      .grayscale()                    // Convert to grayscale
-      .normalize()                    // Auto-level contrast
-      .sharpen({ sigma: 1.5 })       // Sharpen text edges
-      .threshold(140)                 // Binarize for clean text
-      .median(3)                      // Denoise
-      .png({ quality: 100 })
-      .toFile(outPath);
+    // Auto rotate based on EXIF orientation
+    image = image.rotate();
 
-    console.log(`🖼️  Image preprocessed: ${outPath}`);
-    return outPath;
+    // Grayscale optimization
+    image = image.grayscale();
+
+    // DPI / Resolution Enhancement: Upscale if width is low
+    const targetWidth = 2000;
+    if (metadata.width && metadata.width < targetWidth) {
+      image = image.resize({
+        width: targetWidth,
+        fit: 'inside',
+        kernel: 'lanczos3',
+      });
+    }
+
+    // Contrast Enhancement (normalize) + Edge sharpening
+    image = image.normalize().sharpen({ sigma: 1.2 });
+
+    if (outPath) {
+      await image.png({ quality: 100 }).toFile(outPath);
+      return outPath;
+    } else {
+      return await image.png().toBuffer();
+    }
   } catch (error) {
-    console.warn(`⚠️  Preprocessing failed, using original: ${error.message}`);
-    return filePath;
+    console.warn(`⚠️ Preprocessing failed, using original: ${error.message}`);
+    return imageInput;
   }
 };
 
 /**
- * Extract text from image using Tesseract OCR
+ * Scan an image file or buffer for barcodes and QR codes
+ * @param {string|Buffer} imageInput - Path to file or Image Buffer
+ * @returns {Promise<{text: string, format: string}|null>}
+ */
+const scanBarcode = async (imageInput) => {
+  try {
+    let image = sharp(imageInput);
+    
+    // We get raw pixel values with alpha channel
+    const { data, info } = await image
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const len = info.width * info.height;
+    const rgbArray = new Uint8ClampedArray(len * 3);
+    for (let i = 0; i < len; i++) {
+      rgbArray[i * 3] = data[i * 4];         // R
+      rgbArray[i * 3 + 1] = data[i * 4 + 1]; // G
+      rgbArray[i * 3 + 2] = data[i * 4 + 2]; // B
+    }
+
+    const luminanceSource = new RGBLuminanceSource(rgbArray, info.width, info.height);
+    const binaryBitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource));
+    const reader = new MultiFormatReader();
+    
+    const decodeResult = reader.decode(binaryBitmap);
+    if (decodeResult) {
+      return {
+        text: decodeResult.getText(),
+        format: decodeResult.getBarcodeFormat().toString(),
+      };
+    }
+    return null;
+  } catch (err) {
+    // ZXing throws if no barcode is found; return null quietly
+    return null;
+  }
+};
+
+/**
+ * Extract text from image using Tesseract OCR (with pre-processing and barcode fallback)
  * @param {string} filePath - Path to image file
  * @param {boolean} preprocess - Whether to preprocess image first
- * @returns {Promise<{text: string, confidence: number, ocrUsed: boolean}>}
+ * @returns {Promise<{text: string, confidence: number, ocrUsed: boolean, barcode: {text: string, format: string}|null}>}
  */
 const extractTextFromImage = async (filePath, preprocess = true) => {
   let processedPath = filePath;
+  let barcode = null;
 
   try {
-    // Preprocess if enabled
+    // 1. Try reading barcodes/QR codes first
+    try {
+      barcode = await scanBarcode(filePath);
+      if (barcode) {
+        console.log(`🎯 Barcode scanned successfully: [${barcode.format}] ${barcode.text}`);
+      }
+    } catch (bcErr) {
+      /* ignore barcode fail */
+    }
+
+    // 2. Preprocess image
     if (preprocess) {
-      processedPath = await preprocessImage(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+      const dir = path.dirname(filePath);
+      const base = path.basename(filePath, ext);
+      const tempOut = path.join(dir, `${base}_preprocessed.png`);
+      processedPath = await preprocessImage(filePath, tempOut);
     }
 
     console.log(`🔍 Starting OCR for: ${path.basename(filePath)}`);
     const result = await Tesseract.recognize(processedPath, 'eng', {
+      langPath: path.join(__dirname, '../../'),
       logger: (info) => {
         if (info.status === 'recognizing text') {
           const progress = Math.round(info.progress * 100);
@@ -74,7 +145,7 @@ const extractTextFromImage = async (filePath, preprocess = true) => {
       try { fs.unlinkSync(processedPath); } catch { /* ignore */ }
     }
 
-    return { text, confidence, ocrUsed: true };
+    return { text, confidence, ocrUsed: true, barcode };
   } catch (error) {
     // Cleanup on error
     if (processedPath !== filePath && fs.existsSync(processedPath)) {
@@ -86,32 +157,36 @@ const extractTextFromImage = async (filePath, preprocess = true) => {
 };
 
 /**
- * Convert a PDF page image buffer to text via OCR
+ * Convert a PDF page image buffer to text via OCR and Barcode scan
  * Used for scanned PDF fallback
  * @param {Buffer} imageBuffer - Image buffer from PDF rendering
- * @returns {Promise<{text: string, confidence: number}>}
+ * @returns {Promise<{text: string, confidence: number, barcode: object|null}>}
  */
 const ocrFromBuffer = async (imageBuffer) => {
   try {
-    // Preprocess buffer
-    const processed = await sharp(imageBuffer)
-      .grayscale()
-      .normalize()
-      .sharpen({ sigma: 1.5 })
-      .threshold(140)
-      .median(3)
-      .png()
-      .toBuffer();
+    // 1. Scan barcode
+    const barcode = await scanBarcode(imageBuffer);
 
-    const result = await Tesseract.recognize(processed, 'eng');
+    // 2. Preprocess buffer
+    const processed = await preprocessImage(imageBuffer);
+
+    const result = await Tesseract.recognize(processed, 'eng', {
+      langPath: path.join(__dirname, '../../'),
+    });
     return {
       text: result.data.text || '',
       confidence: result.data.confidence || 0,
+      barcode,
     };
   } catch (error) {
     console.error(`❌ Buffer OCR Error: ${error.message}`);
-    return { text: '', confidence: 0 };
+    return { text: '', confidence: 0, barcode: null };
   }
 };
 
-module.exports = { extractTextFromImage, preprocessImage, ocrFromBuffer };
+module.exports = {
+  extractTextFromImage,
+  preprocessImage,
+  ocrFromBuffer,
+  scanBarcode,
+};

@@ -13,9 +13,10 @@ const path = require('path');
 const connectDB = require('./src/config/db');
 const billRoutes = require('./src/routes/billRoutes');
 const { errorHandler, notFound } = require('./src/middleware/errorHandler');
+const { startCleanupScheduler } = require('./src/services/cleanupService');
 
 const app = express();
-const PORT = process.env.PORT || 5040;
+const PORT = process.env.PORT || 5041;
 
 // ============================================
 // Database Connection
@@ -77,6 +78,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 Bill Scanner API running on http://0.0.0.0:${PORT}`);
   console.log(`📁 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🗄️  MongoDB: ${process.env.MONGODB_URI}\n`);
+
+  // Start auto-cleanup scheduler (deletes files older than 2 days)
+  startCleanupScheduler();
 });
 
 // Handle port-in-use error gracefully

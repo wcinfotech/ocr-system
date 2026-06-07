@@ -31,16 +31,24 @@ const storage = multer.diskStorage({
   },
 });
 
-// File filter - only allow PDF, JPG, PNG
+// File filter - allow PDF, JPG, PNG, and ZIP
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
-  const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png'];
+  const allowedTypes = [
+    'application/pdf',
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'application/zip',
+    'application/x-zip-compressed',
+    'application/octet-stream'
+  ];
+  const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.zip'];
   const ext = path.extname(file.originalname).toLowerCase();
 
-  if (allowedTypes.includes(file.mimetype) && allowedExtensions.includes(ext)) {
+  if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error(`Invalid file type: ${file.mimetype}. Only PDF, JPG, and PNG files are allowed.`), false);
+    cb(new Error(`Invalid file type: ${file.mimetype}. Only PDF, JPG, PNG, and ZIP files are allowed.`), false);
   }
 };
 

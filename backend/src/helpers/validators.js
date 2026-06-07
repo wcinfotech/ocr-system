@@ -158,7 +158,18 @@ const parseInteger = (val) => {
   return num;
 };
 
+/** Validate AWB tracking number (8-25 chars) */
+const validateAWB = (awbStr) => {
+  if (!awbStr) return null;
+  const cleaned = awbStr.replace(/[\s\-\#\.\:]+/g, '').trim();
+  if (cleaned.length >= 8 && cleaned.length <= 25) {
+    return cleaned;
+  }
+  return null;
+};
+
 module.exports = {
   parseDate, isValidDate, parseAmount, validateGST,
   cleanVendorName, cleanIdField, cleanSkuField, validateHSN, parseInteger,
+  validateAWB,
 };

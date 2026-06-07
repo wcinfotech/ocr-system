@@ -66,4 +66,10 @@ export const exportBills = (params = {}) => api.get('/export', { params, respons
 // Get dashboard stats
 export const getStats = () => api.get('/stats');
 
+// Update bill details (v4)
+export const updateBill = (id, data) => api.put(`/bill/${id}`, data);
+
+// Reprocess bill details (v4)
+export const reprocessBill = (id) => api.post(`/bill/${id}/reprocess`);
+
 export default api;

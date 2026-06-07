@@ -1,367 +1,82 @@
 /**
  * ============================================
- * Extraction Service (v3) - Rule-Based Engine
+ * Extraction Service (v4) - Multi-Stage Engine
  * ============================================
- * Multi-item support, improved SKU extraction
- * NO AI/LLM — pure regex + keyword + heuristics
+ * 5-Stage Invoice Extraction Pipeline:
+ * Stage 1: OCR & Barcode Extraction (done in pdfService/ocrService)
+ * Stage 2: Smart Platform Detection (Amazon, Flipkart, Meesho, Ajio, Myntra, Generic GST)
+ * Stage 3: Stage-based extraction (specialized regex parsing for each platform)
+ * Stage 4: Data Validation & AI/Rule correction
+ * Stage 5: Final JSON & Confidence Score Generation
  */
 
 const {
+  PLATFORM_DETECTORS,
   INVOICE_NUMBER_PATTERNS, ORDER_NUMBER_PATTERNS, DATE_PATTERNS,
   AMOUNT_PATTERNS, AWB_PATTERNS, DELIVERY_PARTNERS, SUPPLIER_PLATFORMS,
-  PAYMENT_PATTERNS, SKU_PATTERNS, QTY_PATTERNS, GST_NUMBER_PATTERNS,
-  TAX_AMOUNT_PATTERNS, TAXABLE_VALUE_PATTERNS, VENDOR_NAME_PATTERNS,
-  RETURN_TYPE_PATTERNS, RETURN_STATUS_PATTERNS, CLAIM_PATTERNS,
-  RETURN_DATE_PATTERNS, HSN_PATTERNS,
+  PAYMENT_PATTERNS, SKU_PATTERNS, SKU_NOISE_WORDS, QTY_PATTERNS,
+  GST_NUMBER_PATTERNS, TAX_AMOUNT_PATTERNS, TAXABLE_VALUE_PATTERNS,
+  VENDOR_NAME_PATTERNS, RETURN_TYPE_PATTERNS, RETURN_STATUS_PATTERNS,
+  CLAIM_PATTERNS, RETURN_DATE_PATTERNS, ITEM_TABLE_PATTERNS,
 } = require('../helpers/regexPatterns');
 
 const {
   parseDate, parseAmount, validateGST, validateHSN,
-  cleanVendorName, cleanIdField, cleanSkuField, parseInteger,
+  cleanVendorName, cleanIdField, cleanSkuField, parseInteger, validateAWB
 } = require('../helpers/validators');
 
 // ════════════════════════════════════════════
-// MULTI-BILL SPLITTER
+// STAGE 2: SMART PLATFORM DETECTION
 // ════════════════════════════════════════════
 
-const splitIntoBills = (rawText) => {
-  if (!rawText || rawText.trim().length < 20) return [rawText];
-
-  // Strategy 1: Smart Page-Level Grouping for Multi-Page PDFs (Form-Feed separated)
-  let rawPages = rawText.split(/\f/).map(s => s.trim()).filter(s => s.length > 20);
-  if (rawPages.length > 1) {
-    const groups = [];
-    let currentGroup = [];
-    let seenInvoices = new Set();
-    let seenOrders = new Set();
-
-    for (const page of rawPages) {
-      if (!hasInvoiceMarker(page)) continue; // skip completely empty/junk pages
-
-      // Find invoice and order numbers on this page
-      let pageInv = null;
-      let pageOrd = null;
-
-      for (const p of INVOICE_NUMBER_PATTERNS) {
-        const m = page.match(p);
-        if (m && m[1]) { pageInv = m[1].trim().toLowerCase(); break; }
-      }
-      for (const p of ORDER_NUMBER_PATTERNS) {
-        const m = page.match(p);
-        if (m && m[1]) { pageOrd = m[1].trim().toLowerCase(); break; }
-      }
-
-      let isDifferent = false;
-      if (pageInv && seenInvoices.size > 0 && !seenInvoices.has(pageInv)) isDifferent = true;
-      if (pageOrd && seenOrders.size > 0 && !seenOrders.has(pageOrd)) isDifferent = true;
-
-      if (isDifferent) {
-        if (currentGroup.length > 0) groups.push(currentGroup.join('\n\f\n'));
-        currentGroup = [page];
-        seenInvoices = new Set(pageInv ? [pageInv] : []);
-        seenOrders = new Set(pageOrd ? [pageOrd] : []);
-      } else {
-        currentGroup.push(page);
-        if (pageInv) seenInvoices.add(pageInv);
-        if (pageOrd) seenOrders.add(pageOrd);
-      }
-    }
-    if (currentGroup.length > 0) groups.push(currentGroup.join('\n\f\n'));
-    if (groups.length > 0) return groups;
-  }
-
-  // Strategy 2: Bill headers (for single-page/raw concatenated text)
-  const headerPattern = /(?=(?:^|\n)\s*(?:TAX\s*INVOICE|INVOICE\s*$|BILL\s*OF\s*SUPPLY|CREDIT\s*NOTE|DEBIT\s*NOTE|RETURN\s*(?:INVOICE|NOTE))\s*(?:\n|$))/gim;
-  let raw2 = rawText.split(headerPattern);
-  if (raw2.length > 0 && raw2[0].trim().length > 0 && !hasInvoiceMarker(raw2[0])) {
-    if (raw2.length > 1) { raw2[1] = raw2[0] + '\n' + raw2[1]; raw2.shift(); }
-  }
-  let seg2 = raw2.map(s => s.trim()).filter(s => s.length > 30);
-  if (seg2.length > 1) {
-    const valid = seg2.filter(seg => hasInvoiceMarker(seg));
-    if (valid.length > 1) return valid;
-  }
-
-  // Strategy 3: Repeating Invoice/Order patterns
-  const invoiceRepeat = /(?=(?:invoice\s*(?:no|number|#)|bill\s*(?:no|number)|order\s*(?:no|number|id))\s*[:\-]?\s*[A-Z0-9])/gi;
-  const matches = [...rawText.matchAll(invoiceRepeat)];
-  if (matches.length > 1) {
-    let segments = [];
-    for (let i = 0; i < matches.length; i++) {
-      const start = i === 0 ? 0 : matches[i].index;
-      const end = i + 1 < matches.length ? matches[i + 1].index : rawText.length;
-      const seg = rawText.substring(start, end).trim();
-      if (seg.length > 20) segments.push(seg);
-    }
-    if (segments.length > 1) return segments;
-  }
-
-  // Strategy 4: Separator lines
-  const sepPattern = /\n\s*[-=]{15,}\s*\n/;
-  let segments = rawText.split(sepPattern).map(s => s.trim()).filter(s => s.length > 30);
-  if (segments.length > 1) {
-    const valid = segments.filter(seg => hasInvoiceMarker(seg));
-    if (valid.length > 1) return valid;
-  }
-
-  return [rawText];
-};
-
-const hasInvoiceMarker = (text) => {
-  return /(?:invoice|bill|order|receipt|credit\s*note)/i.test(text) ||
-    /(?:total|amount|qty|quantity)/i.test(text);
-};
-
-// ════════════════════════════════════════════
-// MULTI-ITEM EXTRACTOR
-// ════════════════════════════════════════════
-
-/**
- * Extract multiple line items from invoice text.
- * Tries table-row parsing first, then falls back to single-item.
- */
-const extractItems = (text) => {
-  if (!text) return [];
-
-  const items = [];
-
-  // Strategy 1: Pipe-delimited table rows
-  const pipeRows = text.match(/^[ \t]*\d{1,3}\s*\|.+$/gm);
-  if (pipeRows && pipeRows.length > 0) {
-    for (const row of pipeRows) {
-      const item = parseTableRow(row, '|');
-      if (item) items.push(item);
-    }
-    if (items.length > 0) return items;
-  }
-
-  // Strategy 2: Tab-delimited rows (common in Flipkart)
-  const tabRows = text.match(/^[ ]*\d{1,3}\t.+$/gm);
-  if (tabRows && tabRows.length > 0) {
-    for (const row of tabRows) {
-      const item = parseTableRow(row, '\t');
-      if (item) items.push(item);
-    }
-    if (items.length > 0) return items;
-  }
-
-  // Strategy 3: SKU lines with amounts nearby
-  const skuMatches = extractAllSKUs(text);
-  if (skuMatches.length > 1) {
-    for (const sku of skuMatches) {
-      items.push({
-        sku: sku,
-        description: sku,
-        qty: 1,
-        hsn: null,
-        taxableValue: null,
-        tax: null,
-        total: null,
-      });
-    }
-    // Try to associate quantities
-    enrichItemsWithQty(items, text);
-    return items;
-  }
-
-  // Strategy 4: Single item fallback
-  const sku = extractSKU(text);
-  const qty = extractQty(text);
-  const hsn = extractHSN(text);
-  const taxableValue = extractAmountField(text, TAXABLE_VALUE_PATTERNS);
-  const taxAmount = extractAmountField(text, TAX_AMOUNT_PATTERNS);
-  const totalAmount = extractAmountField(text, AMOUNT_PATTERNS);
-
-  if (sku || qty || totalAmount) {
-    items.push({
-      sku: sku,
-      description: sku || null,
-      qty: qty || 1,
-      hsn: hsn,
-      taxableValue: taxableValue,
-      tax: taxAmount,
-      total: totalAmount,
-    });
-  }
-
-  return items;
-};
-
-/** Parse a pipe/tab delimited table row */
-const parseTableRow = (row, delimiter) => {
-  const parts = row.split(delimiter).map(p => p.trim()).filter(p => p.length > 0);
-  if (parts.length < 3) return null;
-
-  // First part is usually serial number
-  const srNo = parseInt(parts[0]);
-  if (isNaN(srNo)) return null;
-
-  // Second part is description/SKU
-  const description = parts[1] || '';
-  const sku = cleanSkuField(description);
-  if (!sku || sku.length < 2) return null;
-
-  // Extract numbers from remaining parts
-  const numbers = [];
-  for (let i = 2; i < parts.length; i++) {
-    const num = parseAmount(parts[i]);
-    if (num !== null) numbers.push(num);
-    else {
-      const hsnMatch = parts[i].match(/^(\d{4,8})$/);
-      if (hsnMatch) numbers.push({ hsn: hsnMatch[1] });
-    }
-  }
-
-  // Heuristic: find qty (small integer), amounts (larger numbers)
-  let qty = 1, hsn = null, taxableValue = null, tax = null, total = null;
-
-  for (const n of numbers) {
-    if (typeof n === 'object' && n.hsn) { hsn = n.hsn; continue; }
-    if (typeof n === 'number' && n > 0 && n <= 9999 && Number.isInteger(n) && !qty) {
-      qty = n;
-    }
-  }
-
-  // Last number is usually total, second-to-last is tax
-  const amountNums = numbers.filter(n => typeof n === 'number' && n > 10);
-  if (amountNums.length >= 1) total = amountNums[amountNums.length - 1];
-  if (amountNums.length >= 2) tax = amountNums[amountNums.length - 2];
-  if (amountNums.length >= 3) taxableValue = amountNums[amountNums.length - 3];
-
-  // Find qty from parts explicitly
-  for (let i = 2; i < parts.length; i++) {
-    const qMatch = parts[i].match(/^(\d{1,3})$/);
-    if (qMatch) {
-      const q = parseInt(qMatch[1]);
-      if (q > 0 && q < 1000) { qty = q; break; }
-    }
-  }
-
-  return { sku, description: sku, qty, hsn, taxableValue, tax, total };
-};
-
-/** Extract ALL SKUs found in text (for multi-item detection) */
-const extractAllSKUs = (text) => {
-  const skus = new Set();
-
-  // Look for repeated SKU labels
-  const skuLabelPattern = /(?:sku\s*(?:no|number|#|id|code)?\.?\s*[:\-|]\s*)([A-Za-z0-9][A-Za-z0-9\-_@ ]{2,50})/gi;
-  let match;
-  while ((match = skuLabelPattern.exec(text)) !== null) {
-    const cleaned = cleanSkuField(match[1]);
-    if (cleaned) skus.add(cleaned);
-  }
-
-  return [...skus];
-};
-
-/** Try to enrich items array with quantity data from text */
-const enrichItemsWithQty = (items, text) => {
-  const lines = text.split('\n');
-  for (const item of items) {
-    if (!item.sku) continue;
-    // Look for qty near the SKU mention
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].includes(item.sku) || lines[i].toLowerCase().includes(item.sku.toLowerCase())) {
-        // Check this line and next 2 lines for qty
-        const nearby = lines.slice(i, Math.min(i + 3, lines.length)).join(' ');
-        const qtyMatch = nearby.match(/(?:qty|quantity)\s*[:\-]?\s*(\d{1,4})/i);
-        if (qtyMatch) {
-          item.qty = parseInt(qtyMatch[1]) || 1;
-        }
-        break;
-      }
-    }
-  }
-};
-
-// ════════════════════════════════════════════
-// SINGLE BILL EXTRACTOR
-// ════════════════════════════════════════════
-
-const extractSingleBill = (text) => {
-  if (!text || typeof text !== 'string' || text.trim().length < 10) {
-    return getEmptyResult();
-  }
-
-  const startTime = Date.now();
-  const isReturn = detectReturnBill(text);
-  const items = extractItems(text);
-  const primarySku = items.length > 0 ? items[0].sku : extractSKU(text);
-  const primaryQty = items.length > 0
-    ? items.reduce((sum, it) => sum + (it.qty || 0), 0)
-    : extractQty(text);
-
-  const result = {
-    billType: isReturn ? 'return' : 'regular',
-    invoiceNumber: extractField(text, INVOICE_NUMBER_PATTERNS, cleanIdField),
-    orderNumber: extractField(text, ORDER_NUMBER_PATTERNS, cleanIdField),
-    billDate: extractDateField(text, DATE_PATTERNS),
-    amount: extractAmountField(text, AMOUNT_PATTERNS),
-    vendorName: extractVendorName(text),
-    vendorDetails: extractVendorDetails(text),
-    supplierPlatform: detectPlatform(text),
-    awbNumber: extractField(text, AWB_PATTERNS, cleanIdField),
-    deliveryPartner: detectDeliveryPartner(text),
-    payment: extractPayment(text),
-    sku: primarySku,
-    qty: primaryQty,
-    gstNumber: extractGSTNumber(text),
-    taxAmount: extractAmountField(text, TAX_AMOUNT_PATTERNS),
-
-    // Multi-item data
-    items: items,
-    totalItems: items.length,
-    totalQty: items.reduce((sum, it) => sum + (it.qty || 0), 0) || primaryQty || 1,
-
-    // Return fields
-    returnDate: null, returnType: null, returnStatus: null,
-    claimAmount: null, claimStatus: null,
+const detectPlatform = (text) => {
+  if (!text) return 'other';
+  const scores = {
+    amazon: 0,
+    flipkart: 0,
+    meesho: 0,
+    ajio: 0,
+    myntra: 0,
   };
 
-  if (result.taxAmount && (!result.amount || result.amount < result.taxAmount)) {
-    result.amount = result.taxAmount;
+  // Score against patterns
+  for (const [platform, patterns] of Object.entries(PLATFORM_DETECTORS)) {
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match) {
+        scores[platform] += 10; // high weight for regex detectors
+      }
+    }
   }
 
-  if (isReturn) {
-    result.returnDate = extractDateField(text, RETURN_DATE_PATTERNS) || result.billDate;
-    result.returnType = extractReturnType(text);
-    result.returnStatus = extractReturnStatus(text);
-    result.claimAmount = extractAmountField(text, CLAIM_PATTERNS);
-    result.claimStatus = result.claimAmount ? 'Claimed' : 'Not Claimed';
+  // Content keywords scoring
+  if (/amazon/i.test(text)) scores.amazon += 5;
+  if (/flipkart|retail\s*net|ekart/i.test(text)) scores.flipkart += 5;
+  if (/meesho|fashnear/i.test(text)) scores.meesho += 5;
+  if (/ajio|reliance/i.test(text)) scores.ajio += 5;
+  if (/myntra|vector\s*e\-commerce/i.test(text)) scores.myntra += 5;
+
+  // Find highest scoring platform
+  let bestPlatform = 'other';
+  let maxScore = 0;
+  for (const [platform, score] of Object.entries(scores)) {
+    if (score > maxScore) {
+      maxScore = score;
+      bestPlatform = platform;
+    }
   }
 
-  result.extractionConfidence = buildConfidence(result);
-  result.processingTimeMs = Date.now() - startTime;
+  // If no specific platform, check if there is a GST number -> generic_gst
+  if (bestPlatform === 'other') {
+    const hasGST = GST_NUMBER_PATTERNS.some(p => p.test(text));
+    if (hasGST) return 'generic_gst';
+  }
 
-  return result;
-};
-
-const extractBillData = (rawText) => {
-  const segments = splitIntoBills(rawText);
-  const allBills = segments.map((segment, idx) => {
-    const extracted = extractSingleBill(segment);
-    extracted.rawExtractedText = segment;
-    extracted.billIndex = idx + 1;
-    return extracted;
-  });
-
-  // Filter out empty/junk segments that have no useful data
-  const validBills = allBills.filter(b =>
-    b.invoiceNumber || b.orderNumber || b.amount || b.sku
-  );
-
-  // If all were filtered out, keep at least the first one
-  const bills = validBills.length > 0 ? validBills : allBills.length > 0 ? [allBills[0]] : [];
-
-  // Re-index
-  bills.forEach((b, i) => { b.billIndex = i + 1; });
-
-  return { bills, totalBills: bills.length };
+  return bestPlatform;
 };
 
 // ════════════════════════════════════════════
-// FIELD EXTRACTORS
+// STAGE 3: DATA EXTRACTION ENGINE
 // ════════════════════════════════════════════
 
 const extractField = (text, patterns, cleanFn) => {
@@ -405,127 +120,401 @@ const extractAmountField = (text, patterns) => {
   return bestAmount;
 };
 
-/** Improved SKU extractor with multi-word support */
-const extractSKU = (text) => {
-  // Header/noise words that should never be returned as a SKU
-  const HEADER_WORDS = /^(description|product|item|qty|quantity|hsn|rate|price|amount|total|tax|igst|cgst|sgst|cess|sr|sl|no|unit|net|gross|discount|shipping|handling|charges|declaration|sold|ordered|invoice|bill|date|status|order|payment)$/i;
+const extractAWBNumber = (text) => {
+  // Priority 1: Check embedded AWB Barcode text marker injected from PDF service
+  const barcodeMatch = text.match(/AWB_BARCODE:\s*([A-Z0-9]{8,25})/i);
+  if (barcodeMatch) return barcodeMatch[1];
 
-  // Try explicit SKU patterns first
-  for (const pattern of SKU_PATTERNS) {
-    const match = text.match(pattern);
-    if (match) {
-      // Some patterns have 2 capture groups (ASIN + SKU inside parens)
-      const raw = match[2] || match[1];
-      if (raw) {
-        const cleaned = cleanSkuField(raw);
-        if (cleaned && cleaned.length >= 2 && !HEADER_WORDS.test(cleaned.trim())) {
-          return cleaned;
-        }
-      }
-    }
-  }
-
-  // Amazon fallback: extract from "( SKU-CODE )" inside description
-  const parenSku = text.match(/\(\s*([A-Za-z][A-Za-z0-9\-_]{2,30})\s*\)/);
-  if (parenSku && parenSku[1] && !HEADER_WORDS.test(parenSku[1])) {
-    return cleanSkuField(parenSku[1]);
-  }
-
-  // Amazon fallback: ASIN code (10-char alphanumeric starting with B)
-  const asinMatch = text.match(/\b(B0[A-Z0-9]{8})\b/);
-  if (asinMatch && asinMatch[1]) return asinMatch[1];
-
-  // Flipkart fallback: "PRINT - GAJRI" type SKUs from pipe-delimited rows
-  const flipkartPipe = text.match(/\d\s*([A-Z][A-Z\-_ ]{2,40}?)\s*\|\s*[A-Z]/);
-  if (flipkartPipe && flipkartPipe[1]) {
-    const cleaned = cleanSkuField(flipkartPipe[1]);
-    if (cleaned && cleaned.length >= 3 && !HEADER_WORDS.test(cleaned.trim())) return cleaned;
-  }
-
-  // Meesho fallback: lines containing hyphen + color like "PARI-03 MAROON"
-  const descFallback = text.match(/\b([A-Z][A-Z0-9]*[\-][A-Z0-9]+(?:\s*@?\s*[A-Z]+)?)\b/);
-  if (descFallback && descFallback[1]) {
-    const cleaned = cleanSkuField(descFallback[1]);
-    if (cleaned && cleaned.length >= 4 && !HEADER_WORDS.test(cleaned.trim())) return cleaned;
-  }
-
-  // Multi-word fallback: "RAJA RANI-YELLOW" pattern
-  const multiWord = text.match(/\b([A-Z]{2,}\s+[A-Z]{2,}[\-][A-Z]+)\b/);
-  if (multiWord && multiWord[1]) {
-    const cleaned = cleanSkuField(multiWord[1]);
-    if (cleaned && cleaned.length >= 5) return cleaned;
-  }
-
-  return null;
-};
-
-const extractHSN = (text) => {
-  for (const pattern of HSN_PATTERNS) {
+  // Priority 2: Scan AWB_PATTERNS
+  for (const pattern of AWB_PATTERNS) {
     const match = text.match(pattern);
     if (match && match[1]) {
-      const validated = validateHSN(match[1]);
+      const validated = validateAWB(match[1]);
       if (validated) return validated;
     }
   }
   return null;
 };
 
-const extractVendorName = (text) => {
-  const explicit = extractField(text, VENDOR_NAME_PATTERNS, cleanVendorName);
-  if (explicit) return explicit;
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
-  for (const line of lines.slice(0, 3)) {
-    if (line.length >= 3 && line.length <= 80 && /[a-zA-Z]/.test(line) &&
-      !/^\d+[\-\/\.]/.test(line) &&
-      !/^(invoice|bill|receipt|tax|date|gst|order|page|sr)/i.test(line)) {
-      return cleanVendorName(line);
-    }
-  }
-  return null;
-};
-
-const extractVendorDetails = (text) => {
-  const parts = [];
-  const vendor = extractField(text, VENDOR_NAME_PATTERNS, cleanVendorName);
-  if (vendor) parts.push(vendor);
-  const addrMatch = text.match(/(?:address|addr)\s*[:\-]?\s*(.{10,100})/i);
-  if (addrMatch) parts.push(addrMatch[1].trim());
-  return parts.length > 0 ? parts.join(', ') : null;
-};
-
-const detectPlatform = (text) => {
-  for (const { pattern, name } of SUPPLIER_PLATFORMS) {
-    if (pattern.test(text)) return name;
-  }
-  if (/incl\.\s*shipping\s*charge/i.test(text) || /size:\s*(?:free\s*size|[a-z0-9]+)/i.test(text) || /\b\d{10}_\d\b/.test(text)) return 'meesho';
-  if (/\b(\d{3}-\d{7}-\d{7})\b/.test(text)) return 'amazon';
-  if (/\b(OD\d{18})\b/i.test(text)) return 'flipkart';
-  return null;
-};
-
-const detectDeliveryPartner = (text) => {
-  for (const { pattern, name } of DELIVERY_PARTNERS) {
-    if (pattern.test(text)) return name;
-  }
-  return null;
-};
-
-const extractPayment = (text) => {
-  // First try: "Mode of Payment:" which may span 2 lines (e.g. "Mode of Payment: Credit\nCard")
-  const modeMatch = text.match(/mode\s*of\s*payment\s*[:\-]?\s*([\s\S]{2,30}?)(?:\n\s*\n|\nSold|\nPayment|\nDate|\nInvoice)/i);
-  if (modeMatch && modeMatch[1]) {
-    const val = modeMatch[1].replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
-    if (val && !/^\d/.test(val) && val.length >= 2) return val;
-  }
+const extractPaymentModes = (text) => {
+  const paymentModes = new Set();
+  
+  // Search for common payment mode keywords
+  const upiRegex = /\b(?:upi|gpay|google\s*pay|phonepe|paytm|bhim)\b/i;
+  const cardRegex = /\b(?:credit\s*card|debit\s*card|visa|mastercard|rupay|card)\b/i;
+  const codRegex = /\b(?:cod|cash\s*on\s*delivery|pay\s*on\s*delivery|collect\s*cash|pod)\b/i;
+  const prepaidRegex = /\b(?:prepaid|pre\-paid|pre\s*paid|online\s*payment|net\s*banking|netbanking|gift\s*card|amazon\s*pay|wallet)\b/i;
+  
+  // Get raw payment mode strings using PAYMENT_PATTERNS
   for (const pattern of PAYMENT_PATTERNS) {
     const match = text.match(pattern);
     if (match && match[1]) {
-      return match[1].replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+      const modeStr = match[1].toLowerCase();
+      if (upiRegex.test(modeStr)) paymentModes.add('UPI');
+      if (cardRegex.test(modeStr)) paymentModes.add('Card');
+      if (codRegex.test(modeStr)) paymentModes.add('COD');
+      if (prepaidRegex.test(modeStr)) {
+        if (/amazon\s*pay/i.test(modeStr)) paymentModes.add('AmazonPay');
+        else if (/gift\s*card/i.test(modeStr)) paymentModes.add('GiftCard');
+        else paymentModes.add('Prepaid');
+      }
     }
   }
+
+  // Direct scans of the text as fallbacks
+  if (upiRegex.test(text)) paymentModes.add('UPI');
+  if (cardRegex.test(text)) paymentModes.add('Card');
+  if (codRegex.test(text)) paymentModes.add('COD');
+  if (/amazon\s*pay/i.test(text)) paymentModes.add('AmazonPay');
+  if (/gift\s*card/i.test(text)) paymentModes.add('GiftCard');
+  if (/net\s*banking|netbanking/i.test(text)) paymentModes.add('NetBanking');
+
+  return [...paymentModes];
+};
+
+const extractSKUs = (text) => {
+  const skus = [];
+
+  // Try matching SKU patterns in order of priority
+  for (const pattern of SKU_PATTERNS) {
+    const matches = [...text.matchAll(new RegExp(pattern.source, 'gi'))];
+    for (const match of matches) {
+      const raw = match[2] || match[1];
+      if (raw) {
+        const cleaned = cleanSkuField(raw);
+        if (cleaned && cleaned.length >= 2) {
+          skus.push({ value: cleaned, confidence: 90 });
+        }
+      }
+    }
+  }
+
+  // General fallbacks
+  const parenSku = text.match(/\(\s*([A-Za-z][A-Za-z0-9\-_]{2,30})\s*\)/);
+  if (parenSku && parenSku[1]) {
+    skus.push({ value: cleanSkuField(parenSku[1]), confidence: 70 });
+  }
+
+  return skus;
+};
+
+// ── Multi-Item Row Parsing ──
+const extractItems = (text) => {
+  if (!text) return [];
+  const items = [];
+
+  // Strategy 1: Pipe-delimited table rows
+  const pipeRows = text.match(/^[ \t]*\d{1,3}\s*\|.+$/gm);
+  if (pipeRows && pipeRows.length > 0) {
+    for (const row of pipeRows) {
+      const item = parseTableRow(row, '|');
+      if (item) items.push(item);
+    }
+    if (items.length > 0) return items;
+  }
+
+  // Strategy 2: Tab-delimited rows (Flipkart / Myntra)
+  const tabRows = text.match(/^[ ]*\d{1,3}\t.+$/gm);
+  if (tabRows && tabRows.length > 0) {
+    for (const row of tabRows) {
+      const item = parseTableRow(row, '\t');
+      if (item) items.push(item);
+    }
+    if (items.length > 0) return items;
+  }
+
+  return items;
+};
+
+const parseTableRow = (row, delimiter) => {
+  const parts = row.split(delimiter).map(p => p.trim()).filter(p => p.length > 0);
+  if (parts.length < 3) return null;
+
+  const srNo = parseInt(parts[0]);
+  if (isNaN(srNo)) return null;
+
+  const description = parts[1] || '';
+  const sku = cleanSkuField(description);
+  if (!sku || sku.length < 2) return null;
+
+  const numbers = [];
+  for (let i = 2; i < parts.length; i++) {
+    const num = parseAmount(parts[i]);
+    if (num !== null) numbers.push(num);
+    else {
+      const hsnMatch = parts[i].match(/^(\d{4,8})$/);
+      if (hsnMatch) numbers.push({ hsn: hsnMatch[1] });
+    }
+  }
+
+  let qty = 1, hsn = null, taxableValue = null, tax = null, total = null;
+  for (const n of numbers) {
+    if (typeof n === 'object' && n.hsn) { hsn = n.hsn; continue; }
+    if (typeof n === 'number' && n > 0 && n <= 9999 && Number.isInteger(n) && !qty) {
+      qty = n;
+    }
+  }
+
+  const amountNums = numbers.filter(n => typeof n === 'number' && n > 10);
+  if (amountNums.length >= 1) total = amountNums[amountNums.length - 1];
+  if (amountNums.length >= 2) tax = amountNums[amountNums.length - 2];
+  if (amountNums.length >= 3) taxableValue = amountNums[amountNums.length - 3];
+
+  // Try explicit qty regex in parts
+  for (let i = 2; i < parts.length; i++) {
+    const qMatch = parts[i].match(/^(\d{1,3})$/);
+    if (qMatch) {
+      const q = parseInt(qMatch[1]);
+      if (q > 0 && q < 1000) { qty = q; break; }
+    }
+  }
+
+  return { sku, description: sku, qty, hsn, taxableValue, tax, total };
+};
+
+// ── Addresses & Customer Name ──
+const extractNameAndAddresses = (text) => {
+  const result = {
+    customerName: null,
+    shippingAddress: null,
+    billingAddress: null,
+  };
+
+  // Try extracting customer name from shipping or billing details
+  const nameMatch = text.match(/(?:ship\s*to|bill\s*to|sold\s*to|buyer|customer\s*name)\s*[:\-]?\s*([A-Z][a-zA-Z\s\.]{2,40})/i);
+  if (nameMatch) {
+    result.customerName = nameMatch[1].trim();
+  }
+
+  // Address parsing blocks
+  const shippingMatch = text.match(/(?:shipping\s*address|ship\s*to|delivery\s*address)\s*[:\-]?\s*([\s\S]{10,250}?)(?=(?:\n\s*\n|\nBill|\nInvoice|\nOrder|\nSold|\nGSTIN))/i);
+  if (shippingMatch) {
+    result.shippingAddress = shippingMatch[1].replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  const billingMatch = text.match(/(?:billing\s*address|bill\s*to|invoice\s*address)\s*[:\-]?\s*([\s\S]{10,250}?)(?=(?:\n\s*\n|\nShip|\nDelivery|\nOrder|\nSold|\nGSTIN))/i);
+  if (billingMatch) {
+    result.billingAddress = billingMatch[1].replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  // If customerName is empty, attempt extraction from first line of shipping address
+  if (!result.customerName && result.shippingAddress) {
+    const lines = result.shippingAddress.split(',');
+    if (lines[0] && lines[0].trim().length > 2 && lines[0].trim().length < 40) {
+      result.customerName = lines[0].trim();
+    }
+  }
+
+  return result;
+};
+
+// ── Courier & Seller ──
+const extractCourierAndSeller = (text) => {
+  const result = {
+    courierPartner: null,
+    sellerName: null,
+  };
+
+  for (const { pattern, name } of DELIVERY_PARTNERS) {
+    if (pattern.test(text)) {
+      result.courierPartner = name;
+      break;
+    }
+  }
+
+  const sellerMatch = text.match(/(?:sold\s*by|seller\s*name|supplier|shipper)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s&\.\,\-]{2,60})/i);
+  if (sellerMatch) {
+    result.sellerName = cleanVendorName(sellerMatch[1]);
+  }
+
+  return result;
+};
+
+// ── Filename extraction helper ──
+const extractAwbFromFileName = (fileName) => {
+  if (!fileName) return null;
+  const nameWithoutExt = fileName.replace(/\.[a-zA-Z0-9]+$/, '').trim();
+  
+  const flipkartMatch = nameWithoutExt.match(/(?:^|[^a-zA-Z0-9])(FM[A-Z]{2}\d{8,14})(?:[^a-zA-Z0-9]|$)/i);
+  if (flipkartMatch) return flipkartMatch[1].toUpperCase();
+
+  const atsMatch = nameWithoutExt.match(/(?:^|[^a-zA-Z0-9])(ATS\d{8,15})(?:[^a-zA-Z0-9]|$)/i);
+  if (atsMatch) return atsMatch[1].toUpperCase();
+
+  // Remove the overly greedy \d{10,20} match which causes false positives on filenames
+
   return null;
 };
 
+// ════════════════════════════════════════════
+// STAGE 4: VALIDATION AND AI DATA CORRECTION
+// ════════════════════════════════════════════
+
+const performCorrections = (bill) => {
+  // Reconcile deliveryType based on payment
+  if (bill.paymentModes.includes('COD')) {
+    bill.deliveryType = 'COD';
+  } else if (bill.paymentModes.length > 0) {
+    bill.deliveryType = 'PREPAID';
+  }
+
+  // Set single payment field for DB backwards compatibility
+  if (bill.paymentModes.length > 0) {
+    bill.payment = bill.paymentModes.join(', ');
+  } else {
+    bill.payment = null;
+  }
+
+  // Cross-validation of Amounts: amount = taxable + tax
+  if (bill.taxAmount && !bill.amount) {
+    bill.amount = bill.taxAmount;
+  }
+  
+  // Taxable Value reconciliation
+  const calculatedTotal = (bill.items || []).reduce((sum, item) => sum + (item.total || 0), 0);
+  if (calculatedTotal > 0 && (!bill.amount || Math.abs(bill.amount - calculatedTotal) > 5)) {
+    bill.amount = calculatedTotal;
+  }
+
+  // Ensure Quantity is integer
+  bill.qty = parseInt(bill.qty) || 1;
+
+  // OCR cleanups for AWB (if standard prefix ATS but read with O/I typos)
+  if (bill.awbNumber) {
+    if (bill.awbNumber.toUpperCase().startsWith('ATSO')) {
+      bill.awbNumber = 'ATS0' + bill.awbNumber.slice(4);
+    }
+  }
+
+  return bill;
+};
+
+// ════════════════════════════════════════════
+// STAGE 5: FINAL JSON & CONFIDENCE SCORE
+// ════════════════════════════════════════════
+
+const calculateConfidence = (bill) => {
+  const score = (val, weight = 100) => {
+    if (val === null || val === undefined) return 0;
+    if (Array.isArray(val) && val.length === 0) return 0;
+    if (typeof val === 'string' && val.length < 3) return Math.min(40, weight);
+    return weight;
+  };
+
+  const confidenceScores = {
+    invoiceNumber: score(bill.invoiceNumber),
+    orderNumber: score(bill.orderNumber),
+    billDate: score(bill.billDate),
+    amount: score(bill.amount),
+    vendorName: score(bill.vendorName, 70),
+    platform: score(bill.platform),
+    awbNumber: score(bill.awbNumber, 100),
+    payment: score(bill.payment),
+    sku: score(bill.sku),
+    qty: score(bill.qty),
+    gstNumber: score(bill.gstNumber, 100),
+    items: bill.items && bill.items.length > 0 ? 100 : 0,
+  };
+
+  // Average confidence score
+  const vals = Object.values(confidenceScores);
+  const average = vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+
+  return {
+    scores: confidenceScores,
+    average,
+  };
+};
+
+// ════════════════════════════════════════════
+// SINGLE PAGE EXTRACTION
+// ════════════════════════════════════════════
+
+const extractSingleBill = (text, fileName = '') => {
+  if (!text || typeof text !== 'string' || text.trim().length < 10) {
+    return getEmptyResult();
+  }
+
+  const startTime = Date.now();
+  
+  // Stage 2: Platform Detection
+  const platform = detectPlatform(text);
+  
+  // Stage 3: Platform specific data extraction
+  const items = extractItems(text);
+  
+  // SKUs selection
+  const extractedSkus = extractSKUs(text);
+  const primarySku = items.length > 0 ? items[0].sku : (extractedSkus.length > 0 ? extractedSkus[0].value : null);
+  
+  // Quantities
+  const primaryQty = items.length > 0
+    ? items.reduce((sum, it) => sum + (it.qty || 0), 0)
+    : extractQty(text);
+
+  const nameAndAddr = extractNameAndAddresses(text);
+  const courierAndSeller = extractCourierAndSeller(text);
+  const isReturn = detectReturnBill(text);
+
+  let bill = {
+    billType: isReturn ? 'return' : 'regular',
+    invoiceNumber: extractField(text, INVOICE_NUMBER_PATTERNS, cleanIdField),
+    orderNumber: extractField(text, ORDER_NUMBER_PATTERNS, cleanIdField),
+    billDate: extractDateField(text, DATE_PATTERNS),
+    amount: extractAmountField(text, AMOUNT_PATTERNS),
+    vendorName: courierAndSeller.sellerName || extractVendorName(text),
+    vendorDetails: nameAndAddr.shippingAddress || null,
+    supplierPlatform: platform === 'generic_gst' ? 'other' : platform,
+    platform: platform,
+    awbNumber: extractAWBNumber(text) || extractAwbFromFileName(fileName),
+    deliveryPartner: courierAndSeller.courierPartner,
+    paymentModes: extractPaymentModes(text),
+    payment: null,
+    deliveryType: 'PREPAID', // Default fallback
+    sku: primarySku,
+    qty: primaryQty,
+    gstNumber: extractField(text, GST_NUMBER_PATTERNS, validateGST),
+    taxAmount: extractAmountField(text, TAX_AMOUNT_PATTERNS),
+
+    // Address Info
+    customerName: nameAndAddr.customerName,
+    shippingAddress: nameAndAddr.shippingAddress,
+    billingAddress: nameAndAddr.billingAddress,
+    sellerName: courierAndSeller.sellerName,
+    courierPartner: courierAndSeller.courierPartner,
+
+    // Multi-item data
+    items: items,
+    totalItems: items.length,
+    totalQty: items.reduce((sum, it) => sum + (it.qty || 0), 0) || primaryQty || 1,
+
+    // Return fields
+    returnDate: null, returnType: null, returnStatus: null,
+    claimAmount: null, claimStatus: null,
+  };
+
+  if (isReturn) {
+    bill.returnDate = extractDateField(text, RETURN_DATE_PATTERNS) || bill.billDate;
+    bill.returnType = extractField(text, RETURN_TYPE_PATTERNS, (s) => s.trim().substring(0, 60)) || 'Return';
+    bill.returnStatus = extractField(text, RETURN_STATUS_PATTERNS, (s) => s.trim()) || 'Success';
+    bill.claimAmount = extractAmountField(text, CLAIM_PATTERNS);
+    bill.claimStatus = bill.claimAmount ? 'Claimed' : 'Not Claimed';
+  }
+
+  // Stage 4: Perform Corrections
+  bill = performCorrections(bill);
+
+  // Stage 5: Confidence Scoring
+  const confidence = calculateConfidence(bill);
+  bill.extractionConfidence = confidence.scores;
+  bill.confidence = confidence.average;
+
+  bill.processingTimeMs = Date.now() - startTime;
+
+  return bill;
+};
+
+// Helper Qty
 const extractQty = (text) => {
   if (!text) return null;
   const sandwichPattern = /(?:Rs\.?|INR|₹|\$)?\s*([\d,]+\.\d{2})\s*(\d{1,2})\s*(?:Rs\.?|INR|₹|\$)?\s*([\d,]+\.\d{2})/i;
@@ -544,12 +533,16 @@ const extractQty = (text) => {
   return 1;
 };
 
-const extractGSTNumber = (text) => {
-  for (const pattern of GST_NUMBER_PATTERNS) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      const validated = validateGST(match[1]);
-      if (validated) return validated;
+// Helper VendorName
+const extractVendorName = (text) => {
+  const explicit = extractField(text, VENDOR_NAME_PATTERNS, cleanVendorName);
+  if (explicit) return explicit;
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+  for (const line of lines.slice(0, 3)) {
+    if (line.length >= 3 && line.length <= 80 && /[a-zA-Z]/.test(line) &&
+      !/^\d+[\-\/\.]/.test(line) &&
+      !/^(invoice|bill|receipt|tax|date|gst|order|page|sr)/i.test(line)) {
+      return cleanVendorName(line);
     }
   }
   return null;
@@ -559,61 +552,251 @@ const detectReturnBill = (text) => {
   return /(?:return\s*(?:invoice|bill|note|order)|credit\s*note|rto|reverse\s*pickup|customer\s*return|buyer\s*return|return\s*to\s*origin)/i.test(text);
 };
 
-const extractReturnType = (text) => {
-  for (const pattern of RETURN_TYPE_PATTERNS) {
-    const match = text.match(pattern);
-    if (match && match[1]) return match[1].trim().substring(0, 60);
-  }
-  if (/\bRTO\b/.test(text)) return 'RTO';
-  if (/customer\s*return/i.test(text)) return 'Customer Return';
-  if (/reverse\s*pickup/i.test(text)) return 'Reverse Pickup';
-  return 'Return';
+// ════════════════════════════════════════════
+// PHASE 5: INTELLIGENT GROUPING & MERGING ENGINE
+// ════════════════════════════════════════════
+
+const getFuzzyNameMatch = (name1, name2) => {
+  if (!name1 || !name2) return false;
+  const n1 = name1.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+  const n2 = name2.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+  if (n1 === n2 || n1.includes(n2) || n2.includes(n1)) return true;
+  return false;
 };
 
-const extractReturnStatus = (text) => {
-  for (const pattern of RETURN_STATUS_PATTERNS) {
-    const match = text.match(pattern);
-    if (match && match[1]) return match[1].trim();
+const getAddressSimilarity = (addr1, addr2) => {
+  if (!addr1 || !addr2) return false;
+
+  // 1. PIN code check
+  const pin1 = addr1.match(/\b\d{6}\b/);
+  const pin2 = addr2.match(/\b\d{6}\b/);
+  if (pin1 && pin2 && pin1[0] === pin2[0]) {
+    return true;
   }
-  if (/(?:return\s*)?(?:delivered|received|completed|successful)/i.test(text)) return 'Success';
-  if (/(?:return\s*)?(?:failed|rejected|lost|damaged)/i.test(text)) return 'Failed';
-  return 'Pending';
+
+  // 2. Word overlap check
+  const w1 = addr1.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 3);
+  const w2 = addr2.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 3);
+  
+  if (w1.length === 0 || w2.length === 0) return false;
+  
+  const set2 = new Set(w2);
+  let overlap = 0;
+  for (const w of w1) {
+    if (set2.has(w)) overlap++;
+  }
+
+  const ratio = overlap / Math.min(w1.length, w2.length);
+  return ratio >= 0.7;
 };
 
-/** Build confidence map with numeric 0-100 scoring */
-const buildConfidence = (result) => {
-  const score = (val, weight = 100) => {
-    if (val === null || val === undefined) return 0;
-    if (typeof val === 'string' && val.length < 3) return Math.min(40, weight);
-    return weight;
+/**
+ * Merges two extracted page bills into a single unified record
+ */
+const mergePageBills = (b1, b2) => {
+  const selectLonger = (s1, s2) => {
+    if (!s1) return s2;
+    if (!s2) return s1;
+    return s1.length >= s2.length ? s1 : s2;
   };
-  return {
-    invoiceNumber: score(result.invoiceNumber),
-    orderNumber: score(result.orderNumber),
-    billDate: score(result.billDate),
-    amount: score(result.amount),
-    vendorName: result.vendorName ? 60 : 0,
-    supplierPlatform: score(result.supplierPlatform),
-    awbNumber: score(result.awbNumber),
-    deliveryPartner: score(result.deliveryPartner),
-    payment: score(result.payment),
-    sku: score(result.sku),
-    qty: score(result.qty),
-    gstNumber: result.gstNumber ? 100 : 0,
-    items: result.items && result.items.length > 0 ? 100 : 0,
+
+  const selectLarger = (n1, n2) => {
+    if (n1 == null) return n2;
+    if (n2 == null) return n1;
+    return n1 >= n2 ? n1 : n2;
   };
+
+  const mergePaymentModes = (p1, p2) => {
+    const combined = new Set([...(p1 || []), ...(p2 || [])]);
+    return [...combined];
+  };
+
+  const merged = {
+    ...b1,
+    billType: b1.billType === 'return' || b2.billType === 'return' ? 'return' : 'regular',
+    invoiceNumber: selectLonger(b1.invoiceNumber, b2.invoiceNumber),
+    orderNumber: selectLonger(b1.orderNumber, b2.orderNumber),
+    billDate: b1.billDate || b2.billDate,
+    amount: selectLarger(b1.amount, b2.amount),
+    vendorName: selectLonger(b1.vendorName, b2.vendorName),
+    vendorDetails: selectLonger(b1.vendorDetails, b2.vendorDetails),
+    supplierPlatform: b1.supplierPlatform || b2.supplierPlatform,
+    platform: b1.platform && b1.platform !== 'other' ? b1.platform : b2.platform,
+    awbNumber: selectLonger(b1.awbNumber, b2.awbNumber),
+    deliveryPartner: selectLonger(b1.deliveryPartner, b2.deliveryPartner),
+    paymentModes: mergePaymentModes(b1.paymentModes, b2.paymentModes),
+    sku: selectLonger(b1.sku, b2.sku),
+    qty: selectLarger(b1.qty, b2.qty),
+    gstNumber: b1.gstNumber || b2.gstNumber,
+    taxAmount: selectLarger(b1.taxAmount, b2.taxAmount),
+
+    // Customer / Address info
+    customerName: selectLonger(b1.customerName, b2.customerName),
+    shippingAddress: selectLonger(b1.shippingAddress, b2.shippingAddress),
+    billingAddress: selectLonger(b1.billingAddress, b2.billingAddress),
+    sellerName: selectLonger(b1.sellerName, b2.sellerName),
+    courierPartner: selectLonger(b1.courierPartner, b2.courierPartner),
+
+    // Line items
+    items: b1.items && b1.items.length > 0 ? b1.items : (b2.items || []),
+    totalItems: selectLarger(b1.totalItems, b2.totalItems),
+    totalQty: selectLarger(b1.totalQty, b2.totalQty),
+  };
+
+  // Re-run corrections
+  return performCorrections(merged);
+};
+
+/**
+ * Split text by form-feed page markers, then further split by invoice headers.
+ * Merge only pages that genuinely belong to the same bill (label + its invoice).
+ * Anti-merge: pages with DIFFERENT order/invoice numbers are always separate.
+ */
+const extractBillData = (rawText, fileName = '') => {
+  if (!rawText) return { bills: [], totalBills: 0 };
+
+  // ── Step 1: Split by form-feed ──
+  const rawPages = rawText.split(/\f/).map(s => s.trim()).filter(s => s.length > 15);
+  
+  if (rawPages.length === 0) {
+    return { bills: [], totalBills: 0 };
+  }
+
+  // ── Step 2: Further split pages that contain multiple invoice headers ──
+  // Amazon/GST PDFs sometimes produce pages where multiple invoices are concatenated
+  const splitPages = [];
+  const invoiceHeaderRegex = /(?:^|\n)\s*(?:Tax\s*Invoice|Bill\s*of\s*Supply|Cash\s*Memo|INVOICE|TAX\s*INVOICE|BILL\s*OF\s*SUPPLY).*?(?:\n|$)/i;
+  
+  for (const page of rawPages) {
+    // Check if page contains multiple Amazon order numbers (xxx-xxxxxxx-xxxxxxx)
+    const orderMatches = page.match(/\b\d{3}-\d{7}-\d{7}\b/g);
+    const uniqueOrders = orderMatches ? [...new Set(orderMatches)] : [];
+    
+    if (uniqueOrders.length > 1) {
+      // This page contains multiple distinct invoices — try to split them
+      const parts = page.split(/(?=Tax\s*Invoice\/Bill\s*of\s*Supply|(?:^|\n)\s*Tax\s*Invoice\b)/i);
+      for (const part of parts) {
+        const trimmed = part.trim();
+        if (trimmed.length > 15) splitPages.push(trimmed);
+      }
+    } else {
+      splitPages.push(page);
+    }
+  }
+
+  // ── Step 3: Extract data for each page individually ──
+  const pageBills = splitPages.map((pageText) => {
+    const extracted = extractSingleBill(pageText, fileName);
+    extracted.rawExtractedText = pageText;
+    return extracted;
+  });
+
+  // ── Step 4: Intelligent merging with anti-merge guards ──
+  const mergedBills = [];
+
+  for (const pageBill of pageBills) {
+    let matchedIdx = -1;
+
+    // Determine if this page is a "data-poor" label page
+    const pageIsLabelOnly = !pageBill.totalAmount && (!pageBill.items || pageBill.items.length === 0);
+
+    for (let idx = mergedBills.length - 1; idx >= 0; idx--) {
+      const existing = mergedBills[idx];
+      let matches = false;
+      const existingIsLabelOnly = !existing.totalAmount && (!existing.items || existing.items.length === 0);
+
+      // ── Anti-merge guard: DIFFERENT identifiers → NEVER merge ──
+      // Skip the strict anti-merge guard if one of the pages is just a shipping label
+      if (!pageIsLabelOnly && !existingIsLabelOnly) {
+        if (existing.orderNumber && pageBill.orderNumber && existing.orderNumber !== pageBill.orderNumber) {
+          continue;
+        }
+        if (existing.invoiceNumber && pageBill.invoiceNumber && existing.invoiceNumber !== pageBill.invoiceNumber) {
+          continue;
+        }
+      }
+
+      // Helper to do fuzzy alphanumeric matching for OCR errors (e.g., missing hyphens)
+      const isFuzzyMatch = (s1, s2) => {
+        if (!s1 || !s2) return false;
+        const c1 = s1.replace(/[^a-z0-9]/gi, '');
+        const c2 = s2.replace(/[^a-z0-9]/gi, '');
+        return c1.length > 5 && c2.length > 5 && (c1.includes(c2) || c2.includes(c1));
+      };
+
+      // Priority 1: Match by Order Number
+      if (existing.orderNumber && pageBill.orderNumber && isFuzzyMatch(existing.orderNumber, pageBill.orderNumber)) {
+        matches = true;
+      }
+      // Priority 2: Match by Invoice Number
+      else if (existing.invoiceNumber && pageBill.invoiceNumber && isFuzzyMatch(existing.invoiceNumber, pageBill.invoiceNumber)) {
+        matches = true;
+      }
+      // Priority 3: Match by AWB Number
+      else if (existing.awbNumber && pageBill.awbNumber && isFuzzyMatch(existing.awbNumber, pageBill.awbNumber)) {
+        if (pageIsLabelOnly || existingIsLabelOnly) matches = true;
+      }
+      // Priority 4: Bidirectional Adjacent Merge for Labels
+      else if (existingIsLabelOnly && existing.awbNumber && !pageBill.awbNumber && idx === mergedBills.length - 1) {
+        matches = true; // Label came first, now the Invoice is being processed
+      }
+      else if (pageIsLabelOnly && pageBill.awbNumber && !existing.awbNumber && idx === mergedBills.length - 1) {
+        matches = true; // Invoice came first, now the Label is being processed
+      }
+      // Priority 5: Completely empty page adjacent merge
+      else if (pageIsLabelOnly && !pageBill.awbNumber && !pageBill.orderNumber && idx === mergedBills.length - 1) {
+        matches = true;
+      }
+
+      if (matches) {
+        matchedIdx = idx;
+        break;
+      }
+    }
+
+    if (matchedIdx !== -1) {
+      // Merge pageBill into existing merged bill
+      const merged = mergePageBills(mergedBills[matchedIdx], pageBill);
+      merged.rawExtractedText += '\n\f\n' + pageBill.rawExtractedText;
+      mergedBills[matchedIdx] = merged;
+    } else {
+      // Add as a new distinct bill
+      mergedBills.push(pageBill);
+    }
+  }
+
+  // ── Step 5: Filter out empty / useless records ──
+  const validBills = mergedBills.filter(b => 
+    b.invoiceNumber || b.orderNumber || b.awbNumber || b.amount || b.sku
+  );
+
+  const bills = validBills.length > 0 ? validBills : mergedBills;
+
+  // ── Step 6: Add bill indices and recalculate confidence ──
+  bills.forEach((b, idx) => {
+    b.billIndex = idx + 1;
+    const conf = calculateConfidence(b);
+    b.extractionConfidence = conf.scores;
+    b.confidence = conf.average;
+  });
+
+  return { bills, totalBills: bills.length };
 };
 
 const getEmptyResult = () => ({
   billType: 'regular', invoiceNumber: null, orderNumber: null,
   billDate: null, amount: null, vendorName: null, vendorDetails: null,
-  supplierPlatform: null, awbNumber: null, deliveryPartner: null,
-  payment: null, sku: null, qty: null, gstNumber: null, taxAmount: null,
-  items: [], totalItems: 0, totalQty: 0,
+  supplierPlatform: null, platform: 'other', awbNumber: null, deliveryPartner: null,
+  payment: null, paymentModes: [], deliveryType: 'PREPAID', sku: null, qty: 1, gstNumber: null, taxAmount: null,
+  items: [], totalItems: 0, totalQty: 1, confidence: 0,
   returnDate: null, returnType: null, returnStatus: null,
   claimAmount: null, claimStatus: null,
   extractionConfidence: {}, rawExtractedText: '', billIndex: 1,
   processingTimeMs: 0,
 });
 
-module.exports = { extractBillData, splitIntoBills, extractSingleBill };
+module.exports = {
+  extractBillData,
+  splitIntoBills: (txt) => txt.split(/\f/).map(s => s.trim()).filter(s => s.length > 10),
+  extractSingleBill,
+};

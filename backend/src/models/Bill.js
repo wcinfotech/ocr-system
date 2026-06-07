@@ -63,6 +63,12 @@ const billSchema = new mongoose.Schema(
     sku: { type: String, default: null },
     qty: { type: Number, default: null },
 
+    // ── Upgraded Fields (v4) ──
+    platform: { type: String, default: null },
+    paymentMode: { type: String, default: null },
+    deliveryType: { type: String, default: null },
+    confidence: { type: Number, default: null },
+
     // ── Multi-Item Support (v3) ──
     items: { type: [lineItemSchema], default: [] },
     totalItems: { type: Number, default: 0 },

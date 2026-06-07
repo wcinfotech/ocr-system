@@ -1,9 +1,9 @@
 /**
  * ============================================
- * Bill Controller (v3) — Production
+ * Bill Controller (v4) — Production
  * ============================================
- * Multi-file batch upload, export, retry logic,
- * robust error handling
+ * ZIP extraction, database de-duplication,
+ * manual corrections, and reprocessing support.
  */
 
 const path = require('path');
@@ -13,8 +13,10 @@ const Bill = require('../models/Bill');
 const { extractTextFromPDF } = require('../services/pdfService');
 const { extractTextFromImage } = require('../services/ocrService');
 const { extractBillData, extractSingleBill } = require('../services/extractionService');
-const { parseDate } = require('../helpers/validators');
+const { parseDate, parseAmount, parseInteger } = require('../helpers/validators');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../services/cloudinaryService');
+const { cleanupOldFiles, cleanupOrphanedFiles } = require('../services/cleanupService');
+const AdmZip = require('adm-zip');
 
 const useCloudinary = process.env.USE_CLOUDINARY === 'true';
 
@@ -38,9 +40,15 @@ const uploadBill = async (req, res) => {
     });
     await placeholder.save();
 
-    processBill(placeholder._id, batchId, filePath, ext, file.originalname).catch((err) => {
-      console.error(`Background processing error: ${err.message}`);
-    });
+    if (ext === 'zip') {
+      handleZipFile(placeholder._id, batchId, filePath, file.originalname).catch((err) => {
+        console.error(`Zip background processing error: ${err.message}`);
+      });
+    } else {
+      processBill(placeholder._id, batchId, filePath, ext, file.originalname).catch((err) => {
+        console.error(`Background processing error: ${err.message}`);
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -54,7 +62,7 @@ const uploadBill = async (req, res) => {
 };
 
 // ════════════════════════════════════════════
-// BATCH MULTI-FILE UPLOAD (v3)
+// BATCH MULTI-FILE UPLOAD (v3/v4)
 // ════════════════════════════════════════════
 
 const uploadBills = async (req, res) => {
@@ -78,10 +86,15 @@ const uploadBills = async (req, res) => {
       });
       await placeholder.save();
 
-      // Start background processing for each file
-      processBill(placeholder._id, batchId, file.path, ext, file.originalname).catch((err) => {
-        console.error(`Batch processing error [${file.originalname}]: ${err.message}`);
-      });
+      if (ext === 'zip') {
+        handleZipFile(placeholder._id, batchId, file.path, file.originalname).catch((err) => {
+          console.error(`Batch Zip processing error: ${err.message}`);
+        });
+      } else {
+        processBill(placeholder._id, batchId, file.path, ext, file.originalname).catch((err) => {
+          console.error(`Batch processing error [${file.originalname}]: ${err.message}`);
+        });
+      }
 
       results.push({
         billId: placeholder._id,
@@ -98,6 +111,85 @@ const uploadBills = async (req, res) => {
   } catch (error) {
     console.error(`Batch upload error: ${error.message}`);
     res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ════════════════════════════════════════════
+// ZIP EXTRACTOR AND PROCESSOR (Phase 12)
+// ════════════════════════════════════════════
+
+const handleZipFile = async (placeholderId, batchId, filePath, fileName) => {
+  try {
+    console.log(`📦 Unzipping archive: ${fileName}`);
+    const zip = new AdmZip(filePath);
+    const tempDir = path.join(path.dirname(filePath), `zip_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`);
+    fs.mkdirSync(tempDir, { recursive: true });
+    
+    zip.extractAllTo(tempDir, true);
+    
+    const extractedFiles = [];
+    const scanDir = (dir) => {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          scanDir(fullPath);
+        } else {
+          const ext = path.extname(entry.name).toLowerCase();
+          if (['.pdf', '.jpg', '.jpeg', '.png'].includes(ext)) {
+            extractedFiles.push({
+              path: fullPath,
+              name: entry.name,
+              ext: ext.replace('.', ''),
+            });
+          }
+        }
+      }
+    };
+    
+    scanDir(tempDir);
+    console.log(`📦 Found ${extractedFiles.length} valid files in zip archive.`);
+    
+    if (extractedFiles.length === 0) {
+      throw new Error('No valid PDF, JPG, or PNG files found in the ZIP archive.');
+    }
+    
+    // Complete the zip placeholder itself
+    await Bill.findByIdAndUpdate(placeholderId, {
+      status: 'completed',
+      originalFileName: fileName,
+      fileType: 'zip',
+      rawExtractedText: `Processed ZIP archive. Extracted ${extractedFiles.length} file(s).`,
+      processingTimeMs: 0,
+      totalBillsInFile: extractedFiles.length,
+    });
+    
+    // Process each extracted file under the same batchId
+    for (const file of extractedFiles) {
+      const childPlaceholder = new Bill({
+        uploadBatchId: batchId,
+        originalFile: file.path,
+        originalFileName: file.name,
+        fileType: file.ext,
+        status: 'processing',
+      });
+      await childPlaceholder.save();
+      
+      processBill(childPlaceholder._id, batchId, file.path, file.ext, file.name).catch((err) => {
+        console.error(`Error processing zip child [${file.name}]: ${err.message}`);
+      });
+    }
+
+    // Clean up zip local archive
+    if (fs.existsSync(filePath)) {
+      try { fs.unlinkSync(filePath); } catch { /* ignore */ }
+    }
+  } catch (error) {
+    console.error(`❌ Zip extraction failed: ${error.message}`);
+    await Bill.findByIdAndUpdate(placeholderId, {
+      status: 'failed',
+      errorMessage: error.message,
+    });
   }
 };
 
@@ -125,7 +217,7 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
       pagesProcessed = 1;
     }
 
-    const { bills, totalBills } = extractBillData(rawText);
+    const { bills, totalBills } = extractBillData(rawText, fileName);
     console.log(`📊 Found ${totalBills} bill(s) in ${fileName}`);
 
     const processingTimeMs = Date.now() - startTime;
@@ -145,7 +237,56 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
       }
     }
 
-    if (totalBills === 1) {
+    // ── Per-bill de-duplication + save (Phase 13 v2) ──
+    // Each bill in the PDF is individually checked for duplicates.
+    // Non-duplicate bills are saved as separate rows in the DB.
+    const nonDupeBills = [];
+    for (const bill of bills) {
+      let isDuplicate = false;
+      let matchId = null;
+
+      if (bill.invoiceNumber) {
+        const match = await Bill.findOne({
+          invoiceNumber: bill.invoiceNumber,
+          platform: bill.platform,
+          status: 'completed',
+          _id: { $ne: placeholderId }
+        });
+        if (match) { isDuplicate = true; matchId = match._id; }
+      }
+      if (!isDuplicate && bill.orderNumber) {
+        const match = await Bill.findOne({
+          orderNumber: bill.orderNumber,
+          platform: bill.platform,
+          status: 'completed',
+          _id: { $ne: placeholderId }
+        });
+        if (match) { isDuplicate = true; matchId = match._id; }
+      }
+      if (!isDuplicate && bill.awbNumber) {
+        const match = await Bill.findOne({
+          awbNumber: bill.awbNumber,
+          status: 'completed',
+          _id: { $ne: placeholderId }
+        });
+        if (match) { isDuplicate = true; matchId = match._id; }
+      }
+
+      if (isDuplicate) {
+        console.log(`⚠️ Duplicate bill [${bill.invoiceNumber || bill.orderNumber}] matches ${matchId} — skipping.`);
+        bill._isDuplicate = true;
+        bill._matchId = matchId;
+      } else {
+        nonDupeBills.push(bill);
+      }
+    }
+
+    // Determine what to save
+    const billsToSave = nonDupeBills.length > 0 ? nonDupeBills : bills;
+    const effectiveTotal = billsToSave.length;
+
+    if (effectiveTotal === 0) {
+      // All bills are duplicates — mark the placeholder as completed with a note
       const bill = bills[0];
       await Bill.findByIdAndUpdate(placeholderId, {
         ...buildBillUpdate(bill, totalBills),
@@ -157,10 +298,26 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
         retryCount,
         cloudinaryUrl,
         cloudinaryPublicId,
+        errorMessage: `All ${totalBills} bill(s) are duplicates.`
+      });
+    } else if (effectiveTotal === 1 && nonDupeBills.length === 1) {
+      // Single non-duplicate bill
+      const bill = nonDupeBills[0];
+      await Bill.findByIdAndUpdate(placeholderId, {
+        ...buildBillUpdate(bill, totalBills),
+        rawExtractedText: bill.rawExtractedText || rawText,
+        status: 'completed',
+        ocrUsed,
+        pagesProcessed,
+        processingTimeMs,
+        retryCount,
+        cloudinaryUrl,
+        cloudinaryPublicId,
       });
     } else {
-      for (let i = 0; i < bills.length; i++) {
-        const bill = bills[i];
+      // Multiple bills — save each as a separate row
+      for (let i = 0; i < billsToSave.length; i++) {
+        const bill = billsToSave[i];
         const update = {
           ...buildBillUpdate(bill, totalBills),
           uploadBatchId: batchId,
@@ -189,7 +346,7 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
       try { fs.unlinkSync(filePath); console.log(`🗑️  Local temp file cleaned: ${fileName}`); } catch { /* ignore */ }
     }
 
-    console.log(`✅ Batch ${batchId}: ${totalBills} bill(s) in ${processingTimeMs}ms`);
+    console.log(`✅ Batch ${batchId}: ${totalBills} bill(s) processed in ${processingTimeMs}ms`);
   } catch (error) {
     console.error(`❌ Processing failed [${fileName}]: ${error.message}`);
 
@@ -206,18 +363,16 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
     let cloudinaryPublicId = null;
     if (useCloudinary) {
       try {
-        console.log(`☁️  Uploading failed file ${fileName} to Cloudinary...`);
         const cloudResult = await uploadToCloudinary(filePath);
         cloudinaryUrl = cloudResult.url;
         cloudinaryPublicId = cloudResult.publicId;
       } catch (cloudErr) {
-        console.warn(`⚠️  Failed file Cloudinary upload failed: ${cloudErr.message}`);
+        console.warn(`⚠️ Cloudinary upload failed: ${cloudErr.message}`);
       }
     }
 
-    // Clean up local temp file
     if (fs.existsSync(filePath)) {
-      try { fs.unlinkSync(filePath); console.log(`🗑️  Local temp file cleaned on failure: ${fileName}`); } catch { /* ignore */ }
+      try { fs.unlinkSync(filePath); } catch { /* ignore */ }
     }
 
     await Bill.findByIdAndUpdate(placeholderId, {
@@ -248,6 +403,13 @@ const buildBillUpdate = (bill, totalBills) => {
     vendorName: bill.vendorName,
     vendorDetails: bill.vendorDetails,
     supplierPlatform: bill.supplierPlatform,
+    
+    // Upgraded Fields (v4)
+    platform: bill.platform,
+    paymentMode: bill.paymentMode,
+    deliveryType: bill.deliveryType,
+    confidence: bill.confidence,
+
     awbNumber: bill.awbNumber,
     deliveryPartner: bill.deliveryPartner,
     payment: bill.payment,
@@ -299,7 +461,7 @@ const getBills = async (req, res) => {
       if (startDate) query.parsedBillDate.$gte = new Date(startDate);
       if (endDate) query.parsedBillDate.$lte = new Date(endDate);
     }
-    if (platform) query.supplierPlatform = platform;
+    if (platform) query.platform = platform;
     if (billType) query.billType = billType;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -337,11 +499,9 @@ const deleteBill = async (req, res) => {
     if (!bill) return res.status(404).json({ success: false, error: 'Bill not found' });
     const siblings = await Bill.countDocuments({ uploadBatchId: bill.uploadBatchId, _id: { $ne: bill._id } });
     if (siblings === 0) {
-      // Delete from Cloudinary
       if (bill.cloudinaryPublicId) {
         await deleteFromCloudinary(bill.cloudinaryPublicId);
       }
-      // Delete local file if exists
       if (bill.originalFile && fs.existsSync(bill.originalFile)) {
         try { fs.unlinkSync(bill.originalFile); } catch { /* ignore */ }
       }
@@ -350,6 +510,70 @@ const deleteBill = async (req, res) => {
     res.json({ success: true, message: 'Bill deleted' });
   } catch (error) {
     if (error.name === 'CastError') return res.status(400).json({ success: false, error: 'Invalid bill ID' });
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ── Manual Invoice Correction (Phase 14) ──
+const updateBill = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = { ...req.body };
+
+    // Format Dates
+    if (updateData.billDate) {
+      updateData.parsedBillDate = parseDate(updateData.billDate);
+    }
+    if (updateData.returnDate) {
+      updateData.parsedReturnDate = parseDate(updateData.returnDate);
+    }
+
+    // Format numbers
+    if (updateData.amount !== undefined) updateData.amount = parseAmount(String(updateData.amount));
+    if (updateData.qty !== undefined) updateData.qty = parseInteger(String(updateData.qty)) || 1;
+    if (updateData.taxAmount !== undefined) updateData.taxAmount = parseAmount(String(updateData.taxAmount));
+
+    // Platform mappings
+    if (updateData.platform) {
+      updateData.supplierPlatform = updateData.platform === 'generic_gst' ? 'other' : updateData.platform;
+    }
+
+    const bill = await Bill.findByIdAndUpdate(id, updateData, { new: true });
+    if (!bill) return res.status(404).json({ success: false, error: 'Bill not found' });
+
+    res.json({ success: true, message: 'Bill updated successfully', data: bill });
+  } catch (error) {
+    console.error(`Update error: ${error.message}`);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ── Invoice Reprocessing worker (Phase 14) ──
+const reprocessBill = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const bill = await Bill.findById(id);
+    if (!bill) return res.status(404).json({ success: false, error: 'Bill not found' });
+
+    const filePath = bill.originalFile;
+    if (!fs.existsSync(filePath)) {
+      return res.status(400).json({ success: false, error: 'Original file not found on server for reprocessing.' });
+    }
+
+    // Reset status to processing
+    bill.status = 'processing';
+    bill.errorMessage = null;
+    await bill.save();
+
+    // Spawn reprocessing worker
+    processBill(bill._id, bill.uploadBatchId, filePath, bill.fileType, bill.originalFileName)
+      .catch((err) => {
+        console.error(`Background reprocess error for [${bill._id}]: ${err.message}`);
+      });
+
+    res.json({ success: true, message: 'Invoice reprocessing triggered', data: { id, status: 'processing' } });
+  } catch (error) {
+    console.error(`Reprocessing error: ${error.message}`);
     res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -384,14 +608,14 @@ const getBatchStatus = async (req, res) => {
 };
 
 // ════════════════════════════════════════════
-// EXPORT (CSV)
+// EXPORT (CSV / JSON)
 // ════════════════════════════════════════════
 
 const exportBills = async (req, res) => {
   try {
     const { format = 'csv', ...filters } = req.query;
     const query = {};
-    if (filters.platform) query.supplierPlatform = filters.platform;
+    if (filters.platform) query.platform = filters.platform;
     if (filters.billType) query.billType = filters.billType;
     if (filters.startDate || filters.endDate) {
       query.parsedBillDate = {};
@@ -399,16 +623,22 @@ const exportBills = async (req, res) => {
       if (filters.endDate) query.parsedBillDate.$lte = new Date(filters.endDate);
     }
 
-    const bills = await Bill.find(query).sort({ createdAt: -1 }).limit(5040).select('-rawExtractedText');
+    const bills = await Bill.find(query).sort({ createdAt: -1 }).limit(5000);
+
+    if (format === 'json') {
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename=bills_export_${Date.now()}.json`);
+      return res.send(JSON.stringify(bills, null, 2));
+    }
 
     if (format === 'csv') {
-      const headers = ['Invoice No', 'Order No', 'Date', 'Platform', 'Vendor', 'Amount', 'SKU', 'Qty', 'Items', 'AWB', 'Delivery Partner', 'Payment', 'GST', 'Tax', 'Type', 'Status'];
+      const headers = ['Invoice No', 'Order No', 'Date', 'Platform', 'Vendor', 'Amount', 'SKU', 'Qty', 'Items', 'AWB', 'Delivery Partner', 'Payment Mode', 'Delivery Type', 'GST', 'Tax', 'Type', 'Confidence'];
       const rows = bills.map(b => [
         b.invoiceNumber || '', b.orderNumber || '', b.billDate || '',
-        b.supplierPlatform || '', b.vendorName || '', b.amount || '',
+        b.platform || '', b.vendorName || '', b.amount || '',
         b.sku || '', b.qty || '', b.totalItems || '',
-        b.awbNumber || '', b.deliveryPartner || '', b.payment || '',
-        b.gstNumber || '', b.taxAmount || '', b.billType || '', b.status || '',
+        b.awbNumber || '', b.deliveryPartner || '', b.paymentMode || b.payment || '',
+        b.deliveryType || '', b.gstNumber || '', b.taxAmount || '', b.billType || '', b.confidence || '',
       ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
 
       const csv = [headers.join(','), ...rows].join('\n');
@@ -434,31 +664,28 @@ const migrateBills = async (req, res) => {
     const details = [];
 
     for (const bill of bills) {
-      const extracted = extractSingleBill(bill.rawExtractedText);
+      const extracted = extractSingleBill(bill.rawExtractedText, bill.originalFileName);
       if (!extracted) continue;
 
       const updates = {};
-      // Check ALL extractable fields
       const fieldsToCheck = [
+        'platform', 'paymentMode', 'deliveryType', 'confidence',
         'supplierPlatform', 'qty', 'amount', 'invoiceNumber', 'orderNumber',
         'sku', 'awbNumber', 'deliveryPartner', 'payment', 'gstNumber',
         'taxAmount', 'vendorName', 'billType',
       ];
       for (const field of fieldsToCheck) {
-        // Update if extracted has a value and it's different (or old is null)
-        if (extracted[field] && extracted[field] !== bill[field]) {
+        if (extracted[field] !== undefined && extracted[field] !== bill[field]) {
           updates[field] = extracted[field];
         }
       }
 
-      // Always refresh items array
       if (extracted.items && extracted.items.length > 0) {
         updates.items = extracted.items;
         updates.totalItems = extracted.totalItems;
         updates.totalQty = extracted.totalQty;
       }
 
-      // Always refresh confidence
       if (extracted.extractionConfidence) {
         updates.extractionConfidence = extracted.extractionConfidence;
       }
@@ -494,8 +721,8 @@ const getStats = async (req, res) => {
     ]);
 
     const platformStats = await Bill.aggregate([
-      { $match: { supplierPlatform: { $ne: null } } },
-      { $group: { _id: '$supplierPlatform', count: { $sum: 1 }, totalAmount: { $sum: '$amount' } } },
+      { $match: { platform: { $ne: null } } },
+      { $group: { _id: '$platform', count: { $sum: 1 }, totalAmount: { $sum: '$amount' } } },
       { $sort: { count: -1 } },
     ]);
 
@@ -514,4 +741,39 @@ const getStats = async (req, res) => {
   }
 };
 
-module.exports = { uploadBill, uploadBills, getBills, getBillById, deleteBill, migrateBills, getBatchStatus, exportBills, getStats };
+// ════════════════════════════════════════════
+// MANUAL CLEANUP TRIGGER
+// ════════════════════════════════════════════
+
+const triggerCleanup = async (req, res) => {
+  try {
+    const fileResult = await cleanupOldFiles();
+    const orphanResult = await cleanupOrphanedFiles();
+    res.json({
+      success: true,
+      message: 'Cleanup completed',
+      data: {
+        filesCleanedUp: fileResult.cleaned,
+        orphansCleanedUp: orphanResult.cleaned,
+        errors: fileResult.errors,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+module.exports = {
+  uploadBill,
+  uploadBills,
+  getBills,
+  getBillById,
+  deleteBill,
+  updateBill,
+  reprocessBill,
+  migrateBills,
+  getBatchStatus,
+  exportBills,
+  getStats,
+  triggerCleanup,
+};
