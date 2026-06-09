@@ -112,6 +112,7 @@ const ocrPdfPageWithPdfJs = async (filePath, pageNumber) => {
     
     const ocrResult = await Tesseract.recognize(pngBuffer, 'eng', {
       langPath: path.join(__dirname, '../../'),
+      gzip: false,
     });
     
     let text = ocrResult.data.text || '';

@@ -6,6 +6,11 @@
  * Barcodes: Code128, EAN, UPC, QR, PDF417, DataMatrix
  */
 
+// Global polyfill for browser-dependent libraries
+if (typeof window === 'undefined') {
+  // removed
+}
+
 const Tesseract = require('tesseract.js');
 const sharp = require('sharp');
 const path = require('path');
@@ -128,6 +133,7 @@ const extractTextFromImage = async (filePath, preprocess = true) => {
     console.log(`🔍 Starting OCR for: ${path.basename(filePath)}`);
     const result = await Tesseract.recognize(processedPath, 'eng', {
       langPath: path.join(__dirname, '../../'),
+      gzip: false,
       logger: (info) => {
         if (info.status === 'recognizing text') {
           const progress = Math.round(info.progress * 100);
@@ -172,6 +178,7 @@ const ocrFromBuffer = async (imageBuffer) => {
 
     const result = await Tesseract.recognize(processed, 'eng', {
       langPath: path.join(__dirname, '../../'),
+      gzip: false,
     });
     return {
       text: result.data.text || '',
