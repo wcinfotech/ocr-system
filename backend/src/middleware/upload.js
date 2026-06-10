@@ -31,24 +31,29 @@ const storage = multer.diskStorage({
   },
 });
 
-// File filter - allow PDF, JPG, PNG, and ZIP
+// File filter - allow PDF, JPG, PNG, WEBP, TIFF, BMP, HEIC and ZIP
 const fileFilter = (req, file, cb) => {
   const allowedTypes = [
     'application/pdf',
     'image/jpeg',
     'image/jpg',
     'image/png',
+    'image/webp',
+    'image/tiff',
+    'image/tif',
+    'image/bmp',
+    'image/heic',
     'application/zip',
     'application/x-zip-compressed',
     'application/octet-stream'
   ];
-  const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.zip'];
+  const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif', '.bmp', '.heic', '.zip'];
   const ext = path.extname(file.originalname).toLowerCase();
 
   if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error(`Invalid file type: ${file.mimetype}. Only PDF, JPG, PNG, and ZIP files are allowed.`), false);
+    cb(new Error(`Invalid file type: ${file.mimetype}. Supported formats: PDF, JPG, PNG, WEBP, TIFF, BMP, HEIC, ZIP.`), false);
   }
 };
 

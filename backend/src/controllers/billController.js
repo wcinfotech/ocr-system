@@ -136,7 +136,7 @@ const handleZipFile = async (placeholderId, batchId, filePath, fileName) => {
           scanDir(fullPath);
         } else {
           const ext = path.extname(entry.name).toLowerCase();
-          if (['.pdf', '.jpg', '.jpeg', '.png'].includes(ext)) {
+          if (['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif', '.bmp', '.heic'].includes(ext)) {
             extractedFiles.push({
               path: fullPath,
               name: entry.name,
@@ -151,7 +151,7 @@ const handleZipFile = async (placeholderId, batchId, filePath, fileName) => {
     console.log(`📦 Found ${extractedFiles.length} valid files in zip archive.`);
     
     if (extractedFiles.length === 0) {
-      throw new Error('No valid PDF, JPG, or PNG files found in the ZIP archive.');
+      throw new Error('No valid document or image files found in the ZIP archive.');
     }
     
     // Complete the zip placeholder itself

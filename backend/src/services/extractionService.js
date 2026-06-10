@@ -350,19 +350,204 @@ const extractAwbFromFileName = (fileName) => {
 // STAGE 4: VALIDATION AND AI DATA CORRECTION
 // ════════════════════════════════════════════
 
-const performCorrections = (bill) => {
+const applyOcrFallbacks = (bill, text, fileName) => {
+  if (!text) return bill;
+  
+  // 1. Invoice Number Fallback
+  if (!bill.invoiceNumber) {
+    const looserInvoicePatterns = [
+      /(?:invoice|bill|inv|receipt)\s*(?:no|number|#|num|id|key)?\s*[:\-\|\s]?\s*([a-z0-9\-\/\s]{4,25})/i,
+      /\b(INV[-\/\s]?\d{4,12})\b/i,
+      /\b([A-Z]{2,4}\/\d{4}-\d{2,6}\/\d{2,6})\b/,
+    ];
+    for (const pat of looserInvoicePatterns) {
+      const match = text.match(pat);
+      if (match && match[1]) {
+        const cleaned = cleanIdField(match[1]);
+        if (cleaned && cleaned.length >= 4 && 
+            !/^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]{2}$/i.test(cleaned) && 
+            !/^\d{3}-\d{7}-\d{7}$/.test(cleaned) &&
+            !/^\d{18}$/.test(cleaned) &&
+            !cleaned.includes('/') && !cleaned.includes('-') && !/^\d{10,20}$/.test(cleaned)) {
+          bill.invoiceNumber = cleaned;
+          break;
+        }
+      }
+    }
+  }
+
+  // 2. Order ID Fallback
+  if (!bill.orderNumber) {
+    const amznLooseMatch = text.match(/\b(\d{3})[\s\.]?(\d{7})[\s\.]?(\d{7})\b/);
+    if (amznLooseMatch) {
+      bill.orderNumber = `${amznLooseMatch[1]}-${amznLooseMatch[2]}-${amznLooseMatch[3]}`;
+    } else {
+      const fkLooseMatch = text.match(/\b(?:OD|0D|QD|Q0|O0)\s*(\d{18})\b/i);
+      if (fkLooseMatch) {
+        bill.orderNumber = 'OD' + fkLooseMatch[1];
+      }
+    }
+  }
+
+  // 3. AWB Number Fallback
+  if (!bill.awbNumber) {
+    const looseAwbPatterns = [
+      /\b((?:ATS|AT5|AIS|AJ5)\d{10,12})\b/i,
+      /\b((?:FM|PM|FN)[A-Z0-9]{2}\d{8,14})\b/i,
+      /\b(36\d{10})\b/,
+      /\b(13\d{12})\b/,
+      /\b(\d{12})\b/,
+      /\b(\d{10,20})\b/
+    ];
+    for (const pat of looseAwbPatterns) {
+      const match = text.match(pat);
+      if (match && match[1]) {
+        const cleaned = cleanIdField(match[1]);
+        if (cleaned && cleaned.length >= 8 && cleaned.length <= 25 && 
+            cleaned !== bill.orderNumber && cleaned !== bill.invoiceNumber &&
+            !/^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]{2}$/i.test(cleaned)) {
+          bill.awbNumber = cleaned;
+          break;
+        }
+      }
+    }
+  }
+
+  // 4. GST Number Fallback (with common OCR character corrections)
+  if (!bill.gstNumber) {
+    const possibleGsts = text.match(/\b([A-Z0-9]{15})\b/gi) || [];
+    for (const gst of possibleGsts) {
+      let cleaned = gst.toUpperCase();
+      if (cleaned.startsWith('O')) cleaned = '0' + cleaned.substring(1);
+      if (cleaned.startsWith('I') || cleaned.startsWith('L')) cleaned = '1' + cleaned.substring(1);
+      
+      if (/^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]{2}$/.test(cleaned)) {
+        const stateCode = parseInt(cleaned.substring(0, 2));
+        if (stateCode >= 1 && stateCode <= 37) {
+          bill.gstNumber = cleaned;
+          break;
+        }
+      }
+    }
+  }
+
+  // 5. Total Amount Fallback
+  if (!bill.amount) {
+    const amountMatches = [...text.matchAll(/\b\d+[\.,]\d{2}\b/g)].map(m => parseAmount(m[0])).filter(n => n !== null && n < 50000);
+    if (amountMatches.length > 0) {
+      const lines = text.split('\n');
+      for (const line of lines) {
+        if (/(?:total|payable|net|amount|received|₹|\$|usd)/i.test(line)) {
+          const amt = parseAmount(line);
+          if (amt && amt > 10) {
+            bill.amount = amt;
+            break;
+          }
+        }
+      }
+      if (!bill.amount) {
+        const sorted = amountMatches.sort((a, b) => b - a);
+        bill.amount = sorted[0];
+      }
+    }
+  }
+
+  // 6. Payment Mode Fallback
+  if (!bill.paymentModes || bill.paymentModes.length === 0) {
+    bill.paymentModes = [];
+    if (/\b(?:cod|cash|collect|pay on delivery)\b/i.test(text)) {
+      bill.paymentModes.push('COD');
+    } else if (/\b(?:prepaid|online|upi|gpay|paytm|card|netbanking)\b/i.test(text)) {
+      bill.paymentModes.push('Prepaid');
+    }
+  }
+
+  // 7. Quantity Fallback
+  if (!bill.qty || bill.qty <= 0) {
+    const qtyMatch = text.match(/(?:qty|quantity|ordered)\.?\s*[:\-\|\s]?\s*(\d{1,2})/i);
+    if (qtyMatch && qtyMatch[1]) {
+      bill.qty = parseInt(qtyMatch[1]) || 1;
+    } else {
+      bill.qty = 1;
+    }
+  }
+
+  // 8. Customer Name Fallback
+  if (!bill.customerName) {
+    const nameMatch = text.match(/(?:buyer|customer|recipient|ship to|deliver to)\s*[:\-\|\s]?\s*([A-Z][a-zA-Z\s\.]{2,30})/i);
+    if (nameMatch && nameMatch[1]) {
+      const cleaned = cleanVendorName(nameMatch[1]);
+      if (cleaned && !/^(invoice|bill|date|tax|gst|order|page|sr|total)/i.test(cleaned)) {
+        bill.customerName = cleaned;
+      }
+    }
+  }
+
+  // 9. Seller Name Fallback
+  if (!bill.sellerName && !bill.vendorName) {
+    const sellerMatch = text.match(/(?:seller|supplier|vendor|sold by)\s*[:\-\|\s]?\s*([A-Za-z0-9][A-Za-z0-9\s&\.\,\-]{2,40})/i);
+    if (sellerMatch && sellerMatch[1]) {
+      const cleaned = cleanVendorName(sellerMatch[1]);
+      if (cleaned) {
+        bill.sellerName = cleaned;
+        bill.vendorName = cleaned;
+      }
+    }
+  }
+
+  // 10. SKU Fallback
+  if (!bill.sku) {
+    const skuMatches = [...text.matchAll(/\b([A-Z0-9\-_]{6,20})\b/g)];
+    for (const match of skuMatches) {
+      const cleaned = cleanSkuField(match[1]);
+      if (cleaned && cleaned.length >= 6 && 
+          cleaned !== bill.orderNumber && 
+          cleaned !== bill.invoiceNumber && 
+          cleaned !== bill.awbNumber && 
+          cleaned !== bill.gstNumber) {
+        bill.sku = cleaned;
+        break;
+      }
+    }
+  }
+
+  return bill;
+};
+
+// ════════════════════════════════════════════
+// STAGE 4: VALIDATION AND AI DATA CORRECTION
+// ════════════════════════════════════════════
+
+const performCorrections = (bill, text = '', fileName = '') => {
+  // Apply fallback recovery if fields are missing
+  bill = applyOcrFallbacks(bill, text, fileName);
+
   // Reconcile deliveryType based on payment
-  if (bill.paymentModes.includes('COD')) {
+  if (bill.paymentModes && bill.paymentModes.includes('COD')) {
     bill.deliveryType = 'COD';
-  } else if (bill.paymentModes.length > 0) {
+  } else if (bill.paymentModes && bill.paymentModes.length > 0) {
     bill.deliveryType = 'PREPAID';
   }
 
   // Set single payment field for DB backwards compatibility
-  if (bill.paymentModes.length > 0) {
+  if (bill.paymentModes && bill.paymentModes.length > 0) {
     bill.payment = bill.paymentModes.join(', ');
   } else {
     bill.payment = null;
+  }
+
+  // Standardise Amazon Order number format: 123-1234567-1234567
+  if (bill.orderNumber) {
+    const rawOrder = bill.orderNumber.replace(/[^0-9]/g, '');
+    if (rawOrder.length === 17) {
+      bill.orderNumber = `${rawOrder.substring(0, 3)}-${rawOrder.substring(3, 10)}-${rawOrder.substring(10, 17)}`;
+    } else {
+      // Correct common Flipkart order IDs (e.g. starting with 0D, QD)
+      const rawUpper = bill.orderNumber.trim().toUpperCase();
+      if (/^(?:0D|QD|Q0|O0)\d{18}$/.test(rawUpper)) {
+        bill.orderNumber = 'OD' + rawUpper.substring(2);
+      }
+    }
   }
 
   // Cross-validation of Amounts: amount = taxable + tax
@@ -381,8 +566,11 @@ const performCorrections = (bill) => {
 
   // OCR cleanups for AWB (if standard prefix ATS but read with O/I typos)
   if (bill.awbNumber) {
-    if (bill.awbNumber.toUpperCase().startsWith('ATSO')) {
+    const upperAwb = bill.awbNumber.toUpperCase();
+    if (upperAwb.startsWith('ATSO') || upperAwb.startsWith('AT5O')) {
       bill.awbNumber = 'ATS0' + bill.awbNumber.slice(4);
+    } else if (upperAwb.startsWith('AT5')) {
+      bill.awbNumber = 'ATS' + bill.awbNumber.slice(3);
     }
   }
 
@@ -502,7 +690,7 @@ const extractSingleBill = (text, fileName = '') => {
   }
 
   // Stage 4: Perform Corrections
-  bill = performCorrections(bill);
+  bill = performCorrections(bill, text, fileName);
 
   // Stage 5: Confidence Scoring
   const confidence = calculateConfidence(bill);
@@ -644,7 +832,7 @@ const mergePageBills = (b1, b2) => {
   };
 
   // Re-run corrections
-  return performCorrections(merged);
+  return performCorrections(merged, merged.rawExtractedText || '');
 };
 
 /**
