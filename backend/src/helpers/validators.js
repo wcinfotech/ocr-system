@@ -15,22 +15,36 @@ const parseDate = (dateStr) => {
   if (!dateStr) return null;
   const cleaned = dateStr.trim();
 
-  // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
-  let match = cleaned.match(/^(\d{1,2})[\-\/\.](\d{1,2})[\-\/\.](\d{4})$/);
+  // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY (supporting spaces/tabs as separators)
+  let match = cleaned.match(/^(\d{1,2})[\-\/\.\s]+(\d{1,2})[\-\/\.\s]+(\d{4})$/);
+  if (match) {
+    const date = new Date(match[3], match[2] - 1, match[1]);
+    if (isValidDate(date)) return date;
+  }
+
+  // DDMM/YYYY (missing first separator)
+  match = cleaned.match(/^(\d{2})(\d{2})[\-\/\.\s]+(\d{4})$/);
+  if (match) {
+    const date = new Date(match[3], match[2] - 1, match[1]);
+    if (isValidDate(date)) return date;
+  }
+
+  // DD/MMYYYY (missing second separator)
+  match = cleaned.match(/^(\d{1,2})[\-\/\.\s]+(\d{2})(\d{4})$/);
   if (match) {
     const date = new Date(match[3], match[2] - 1, match[1]);
     if (isValidDate(date)) return date;
   }
 
   // YYYY-MM-DD
-  match = cleaned.match(/^(\d{4})[\-\/\.](\d{1,2})[\-\/\.](\d{1,2})$/);
+  match = cleaned.match(/^(\d{4})[\-\/\.\s]+(\d{1,2})[\-\/\.\s]+(\d{1,2})$/);
   if (match) {
     const date = new Date(match[1], match[2] - 1, match[3]);
     if (isValidDate(date)) return date;
   }
 
   // DD/MM/YY (2-digit year)
-  match = cleaned.match(/^(\d{1,2})[\-\/\.](\d{1,2})[\-\/\.](\d{2})$/);
+  match = cleaned.match(/^(\d{1,2})[\-\/\.\s]+(\d{1,2})[\-\/\.\s]+(\d{2})$/);
   if (match) {
     const year = parseInt(match[3]) > 50 ? `19${match[3]}` : `20${match[3]}`;
     const date = new Date(year, match[2] - 1, match[1]);
@@ -100,8 +114,12 @@ const validateGST = (gstStr) => {
 /** Clean vendor name */
 const cleanVendorName = (name) => {
   if (!name) return null;
-  let cleaned = name.trim().replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ')
-    .replace(/[,.\-\s]+$/, '').replace(/^[,.\-\s]+/, '').trim();
+  // Step 1: Truncate at first newline (prevents cross-field capture)
+  let cleaned = name.split(/[\r\n]/)[0].trim();
+  // Step 2: Truncate at common field labels that OCR may concatenate
+  cleaned = cleaned.replace(/(?:Delivery|Tracking|AWB|Invoice|Order|Payment|GST|Date|Amount|Total|Bill|Tax|Shipping|Billing|Customer|Qty|Quantity|SKU)\s*(?:Partner|No|Number|ID|Mode|Name|Code|Type)?.*$/i, '').trim();
+  // Step 3: Clean trailing punctuation
+  cleaned = cleaned.replace(/\s+/g, ' ').replace(/[,.\-\s]+$/, '').replace(/^[,.\-\s]+/, '').trim();
   if (cleaned.length < 2 || /^\d+$/.test(cleaned)) return null;
   return cleaned.substring(0, 100);
 };
@@ -109,12 +127,20 @@ const cleanVendorName = (name) => {
 /** Clean any ID field (invoice, order, AWB) */
 const cleanIdField = (val) => {
   if (!val) return null;
-  let cleaned = val.trim().replace(/[\r\n]+/g, '').replace(/\s+/g, '')
-    .replace(/^[:\-\s]+/, '').replace(/[:\-\s]+$/, '');
+  let cleaned = val.trim();
 
-  // Clean trailing noise words like Invoice, Date, Tax, Gst, etc.
-  cleaned = cleaned.replace(/(?:invoice|date|tax|gst|billing|shipping).*$/i, '');
-  cleaned = cleaned.replace(/[:\-\s]+$/, '');
+  // Step 1: Truncate at first newline — prevents cross-field capture from OCR text
+  cleaned = cleaned.split(/[\r\n]/)[0].trim();
+
+  // Step 2: Truncate at common field label boundaries that OCR may concatenate
+  // e.g., "INV-001234Order Number:" → "INV-001234"
+  cleaned = cleaned.replace(/(?:invoice|order|bill|date|tax|gst|billing|shipping|awb|tracking|payment|amount|total|qty|quantity|seller|vendor|customer|delivery|waybill|consignment|hsn|sku|item|product)\s*(?:no|number|id|#|name|mode|code|value|partner|type)?\.?\s*[:|\/\-].*/i, '').trim();
+
+  // Step 3: Also truncate if a new field label keyword appears without a separator
+  cleaned = cleaned.replace(/(?:Order|Invoice|Bill|Date|Tax|GST|Billing|Shipping|AWB|Tracking|Payment|Amount|Total|Qty|Quantity|Seller|Customer|Delivery|Vendor)(?:Number|No|ID|Name|Mode|Code|Date|Type).*/g, '').trim();
+
+  // Step 4: Collapse remaining whitespace
+  cleaned = cleaned.replace(/\s+/g, '').replace(/^[:\-\s]+/, '').replace(/[:\-\s]+$/, '');
 
   if (cleaned.length < 2) return null;
   return cleaned.substring(0, 60);

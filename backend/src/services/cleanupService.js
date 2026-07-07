@@ -10,6 +10,8 @@
 const fs = require('fs');
 const path = require('path');
 const Bill = require('../models/Bill');
+const ActivityLog = require('../models/ActivityLog');
+const Setting = require('../models/Setting');
 const { deleteFromCloudinary } = require('./cloudinaryService');
 
 const FILE_RETENTION_MS = 2 * 24 * 60 * 60 * 1000; // 2 days in milliseconds
@@ -120,6 +122,26 @@ const cleanupOrphanedFiles = async () => {
 };
 
 /**
+ * Clean up activity logs older than 7 days if retention setting is enabled
+ */
+const cleanupOldLogs = async () => {
+  try {
+    const settingsDoc = await Setting.findOne({ key: 'system_settings' });
+    const settings = settingsDoc ? settingsDoc.value : {};
+
+    if (settings.activityLogRetention === true) {
+      const cutoffDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days
+      const result = await ActivityLog.deleteMany({ createdAt: { $lt: cutoffDate } });
+      if (result.deletedCount > 0) {
+        console.log(`🧹 Log Cleanup: Deleted ${result.deletedCount} activity logs older than 7 days.`);
+      }
+    }
+  } catch (err) {
+    console.error(`⚠️  Log cleanup error: ${err.message}`);
+  }
+};
+
+/**
  * Start the cleanup scheduler (runs every 6 hours)
  */
 const CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -132,6 +154,7 @@ const startCleanupScheduler = () => {
     console.log('🧹 Running initial cleanup check...');
     await cleanupOldFiles();
     await cleanupOrphanedFiles();
+    await cleanupOldLogs();
   }, 30000); // 30 seconds after server start
 
   // Then run periodically
@@ -139,11 +162,13 @@ const startCleanupScheduler = () => {
     console.log('🧹 Running scheduled cleanup...');
     await cleanupOldFiles();
     await cleanupOrphanedFiles();
+    await cleanupOldLogs();
   }, CLEANUP_INTERVAL_MS);
 };
 
 module.exports = {
   cleanupOldFiles,
   cleanupOrphanedFiles,
+  cleanupOldLogs,
   startCleanupScheduler,
 };

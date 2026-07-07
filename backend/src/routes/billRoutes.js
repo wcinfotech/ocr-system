@@ -14,6 +14,10 @@ const {
 } = require('../controllers/billController');
 const uploadMiddleware = require('../middleware/upload');
 const { multiUpload } = require('../middleware/upload');
+const { protect } = require('../middleware/auth');
+
+// Apply protection to all bill routes
+router.use(protect);
 
 // POST /api/upload-bill - Single file upload (backward compatible)
 router.post('/upload-bill', uploadMiddleware, uploadBill);

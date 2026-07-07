@@ -10,37 +10,48 @@
 const PLATFORM_DETECTORS = {
   amazon: [
     /\b(?:amazon|amazon\.in|amazon\.com|amzn|atspl|amazon\s+seller|sold\s+by\s*:\s*amazon)\b/i,
-    /\b\d{3}[-\s\.]?\d{7}[-\s\.]?\d{7}\b/, // Amazon order ID pattern (OCR-tolerant)
+    /\b\d{3}\s*[\-\s\.\—]+\s*\d{7}\s*[\-\s\.\—]+\s*\d{7}(?!\d)/, // Amazon order ID pattern (OCR-tolerant)
     /\b(?:ATS|AT5|AIS|AJ5)\d{10,12}\b/i, // Amazon ATS AWB (OCR-tolerant)
+    // OCR fuzzy matches for image-based extraction
+    /\b[aA][mM][aA][zZ2][oO0][nN]\b/,                 // ama2on, amaz0n
+    /\b[aA][mM][aA][zZ][o0O][nN]\b/,                   // amazOn, amaz0n
+    /\b(?:AMAZON|amaz0n|ama2on|amazan|amzon)\b/i,       // Common OCR misreads
   ],
   flipkart: [
     /\b(?:flipkart|flipkart\.com|fk\b|retail\s+net|ekart|e\-kart|e\s+kart)\b/i,
     /\b(?:OD|0D|QD|Q0|O0)\d{18}\b/i, // Flipkart order ID pattern (OCR-tolerant)
     /\b(?:FM|PM)[A-Z0-9]{2}\d{8,14}\b/i, // Flipkart AWB (OCR-tolerant)
+    // OCR fuzzy matches for image-based extraction
+    /\b[fF][lI1][iI1][pP][kK][aA][rR][tT]\b/,          // fI1pkart, fl1pkart
+    /\b(?:flipcart|fllpkart|fl1pkart|fiipkart)\b/i,     // Common OCR misreads
   ],
   meesho: [
     /\b(?:meesho|meeshoo|meeshu|fashnear|fash\s*near|fashnear\s+technologies)\b/i,
     /\b\d{10}_\d\b/, // Meesho typical order format in some documents
     /\b(?:purchase\s*order\s*number|invoice\s*number)\b[\s\S]{0,50}\b(?:xpressbees|delhivery|valmo)\b/i,
-    /\b(?:meesho\s*order|meesho\s*id)\b/i
+    /\b(?:meesho\s*order|meesho\s*id)\b/i,
+    // OCR fuzzy matches
+    /\b(?:meesh0|m[e3][e3]sh[o0]|meesha)\b/i,
   ],
   ajio: [
     /\b(?:ajio|ajio\.com|reliance\s+retail|reliance\s+jiomart|trends)\b/i,
     /\b(?:FN|AJ)\d{9,12}\b/i, // Ajio order patterns
+    /\b(?:aj[i1I][o0]|aji0)\b/i,
   ],
   myntra: [
     /\b(?:myntra|myntra\.com|myntra\s+designs|vector\s+e\-commerce)\b/i,
+    /\b(?:myntr[a@]|mynt[r]a|myn[tT]ra)\b/i,
   ],
 };
 
 // ── Invoice / Bill Number ──
 const INVOICE_NUMBER_PATTERNS = [
-  /(?:invoice\s*(?:no|number|#|num|id|key)\.?\s*[:\-\|\s]?\s*)([A-Z0-9][A-Z0-9\-\/\s]{2,40})/i,
-  /(?:bill\s*(?:no|number|#|num)\.?\s*[:\-\|\s]?\s*)([A-Z0-9][A-Z0-9\-\/\s]{2,40})/i,
-  /(?:inv\s*(?:no|number|#)\.?\s*[:\-\|\s]?\s*)([A-Z0-9][A-Z0-9\-\/\s]{2,40})/i,
-  /(?:tax\s*invoice\s*(?:no|number|#)?\.?\s*[:\-\|\s]?\s*)([A-Z0-9][A-Z0-9\-\/\s]{2,40})/i,
-  /(?:receipt\s*(?:no|number|#)\.?\s*[:\-\|\s]?\s*)([A-Z0-9][A-Z0-9\-\/\s]{2,40})/i,
-  /(?:credit\s*note\s*(?:no|number|#)?\.?\s*[:\-\|\s]?\s*)([A-Z0-9][A-Z0-9\-\/\s]{2,40})/i,
+  /(?:invoice\s*(?:no|number|#|num|id|key)\.?\s*[:\-\|\s]?\s*)([A-Z0-9][A-Z0-9\-\/\ \t]{2,40})/i,
+  /(?:bill\s*(?:no|number|#|num)\.?\s*[:\-\|\s]?\s*)([A-Z0-9][A-Z0-9\-\/\ \t]{2,40})/i,
+  /(?:inv\s*(?:no|number|#)\.?\s*[:\-\|\s]?\s*)([A-Z0-9][A-Z0-9\-\/\ \t]{2,40})/i,
+  /(?:tax\s*invoice\s*(?:no|number|#)?\.?\s*[:\-\|\s]?\s*)([A-Z0-9][A-Z0-9\-\/\ \t]{2,40})/i,
+  /(?:receipt\s*(?:no|number|#)\.?\s*[:\-\|\s]?\s*)([A-Z0-9][A-Z0-9\-\/\ \t]{2,40})/i,
+  /(?:credit\s*note\s*(?:no|number|#)?\.?\s*[:\-\|\s]?\s*)([A-Z0-9][A-Z0-9\-\/\ \t]{2,40})/i,
   /\b(INV[\-\/\s]?\d{4,}[\-\/\s]?\d{0,6})\b/i,
   // Shopify invoice style
   /#\s*(\d{4,10})\b/,
@@ -48,8 +59,8 @@ const INVOICE_NUMBER_PATTERNS = [
 
 // ── Order Number ──
 const ORDER_NUMBER_PATTERNS = [
-  // Amazon order pattern: 123-1234567-1234567 (with OCR-tolerant separators)
-  /\b(\d{3}[-\s\.]?\d{7}[-\s\.]?\d{7})\b/,
+  // Amazon order pattern: 123-1234567-1234567 (with OCR-tolerant separators and spaces)
+  /\b(\d{3}\s*[\-\s\.\—]+\s*\d{7}\s*[\-\s\.\—]+\s*\d{7})(?!\d)/,
   // Flipkart order pattern: OD followed by 18 digits (OCR-tolerant prefixes)
   /\b((?:OD|0D|QD|Q0|O0)\d{18})\b/i,
   // Meesho order patterns
@@ -69,14 +80,15 @@ const ORDER_NUMBER_PATTERNS = [
 
 // ── Date Patterns ──
 const DATE_PATTERNS = [
-  /(?:(?:invoice|bill|billing|order|receipt|ship|return)\s*date\s*[:\-\|\s]?\s*)([\d]{1,2}[\-\/\.][\d]{1,2}[\-\/\.][\d]{2,4})/i,
-  /(?:date\s*[:\-\|\s]?\s*)([\d]{1,2}[\-\/\.][\d]{1,2}[\-\/\.][\d]{2,4})/i,
-  /(?:date\s*[:\-\|\s]?\s*)([\d]{4}[\-\/\.][\d]{1,2}[\-\/\.][\d]{1,2})/i,
+  /(?:(?:invoice|bill|billing|order|receipt|ship|return)\s*date\s*[:\-\|\s]?\s*)([\d]{1,2}[\-\/\.\s]+[\d]{1,2}[\-\/\.\s]+[\d]{2,4})/i,
+  /(?:date\s*[:\-\|\s]?\s*)([\d]{1,2}[\-\/\.\s]+[\d]{1,2}[\-\/\.\s]+[\d]{2,4})/i,
+  /(?:date\s*[:\-\|\s]?\s*)([\d]{4}[\-\/\.\s]+[\d]{1,2}[\-\/\.\s]+[\d]{1,2})/i,
   /(?:dated?\s*[:\-\|\s]?\s*)([\d]{1,2}\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s,]*\d{2,4})/i,
   /(?:date\s*[:\-\|\s]?\s*)((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s,]*\d{1,2}[\s,]*\d{2,4})/i,
-  /\b(\d{1,2}[\-\/\.]\d{1,2}[\-\/\.]\d{4})\b/,
-  /\b(\d{4}[\-\/\.]\d{1,2}[\-\/\.]\d{1,2})\b/,
+  /\b(\d{1,2}[\-\/\.\s]+\d{1,2}[\-\/\.\s]+\d{4})\b/,
+  /\b(\d{4}[\-\/\.\s]+\d{1,2}[\-\/\.\s]+\d{1,2})\b/,
   /\b(\d{1,2}\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)[\s,]+\d{4})\b/i,
+  /\b(\d{2}\d{2}[\-\/\.]\d{4})\b/, // 0410/2025 style
 ];
 
 // ── Amount / Total ──
@@ -237,8 +249,8 @@ const TAXABLE_VALUE_PATTERNS = [
 
 // ── Vendor Name ──
 const VENDOR_NAME_PATTERNS = [
-  /(?:vendor|seller|company|firm|merchant|supplier|sold\s*by|shipped?\s*by|from|billed?\s*by)\s*(?:name)?\s*[:\-\|\s]?\s*([A-Za-z][A-Za-z\s&\.\,\-]{2,60})/i,
-  /(?:M\/s\.?\s*)([A-Za-z][A-Za-z\s&\.\,\-]{2,60})/,
+  /(?:vendor|seller|company|firm|merchant|supplier|sold\s*by|shipped?\s*by|from|billed?\s*by)\s*(?:name)?\s*[:\-\|\s]?\s*([^\n\r]{2,60})/i,
+  /(?:M\/s\.?\s*)([^\n\r]{2,60})/,
 ];
 
 // ── Return Bill Patterns ──

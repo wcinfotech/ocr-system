@@ -1,301 +1,555 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
-  HiOutlineSearch, HiOutlineTrash, HiOutlineEye, HiOutlineRefresh,
-  HiOutlineDocumentText, HiOutlineCalendar, HiOutlineChevronLeft,
-  HiOutlineChevronRight, HiOutlineFilter, HiOutlineDownload,
-  HiOutlineExternalLink,
+  HiOutlineDocumentText,
+  HiOutlineCalendar,
+  HiOutlineTrendingUp,
+  HiOutlineUserGroup,
+  HiOutlineCurrencyRupee,
+  HiOutlineInboxIn,
+  HiOutlineCloudUpload,
+  HiOutlineRefresh,
+  HiOutlineEye,
+  HiOutlineCheckCircle,
+  HiOutlineExclamationCircle,
+  HiOutlineClock,
+  HiOutlineArrowRight,
+  HiOutlineReceiptRefund,
 } from 'react-icons/hi';
-import { getBills, deleteBill, exportBills, getStats } from '../services/api';
+import { getStats, getBills } from '../services/api';
 
-const PLATFORMS = [
-  { value: '', label: 'All Platforms' },
-  { value: 'amazon', label: 'Amazon' }, { value: 'flipkart', label: 'Flipkart' },
-  { value: 'meesho', label: 'Meesho' }, { value: 'myntra', label: 'Myntra' },
-  { value: 'snapdeal', label: 'Snapdeal' }, { value: 'jiomart', label: 'JioMart' },
-  { value: 'ajio', label: 'Ajio' }, { value: 'personal', label: 'Personal' },
-  { value: 'other', label: 'Other' },
-];
+const platformMetadata = {
+  amazon: {
+    name: 'Amazon',
+    borderColor: 'border-amber-200',
+    bgColor: 'bg-gradient-to-br from-amber-50/60 to-orange-50/20',
+    barColor: 'bg-amber-500',
+    textColor: 'text-amber-800'
+  },
+  flipkart: {
+    name: 'Flipkart',
+    borderColor: 'border-blue-200',
+    bgColor: 'bg-gradient-to-br from-blue-50/60 to-sky-50/20',
+    barColor: 'bg-blue-500',
+    textColor: 'text-blue-800'
+  },
+  meesho: {
+    name: 'Meesho',
+    borderColor: 'border-pink-200',
+    bgColor: 'bg-gradient-to-br from-pink-50/60 to-rose-50/20',
+    barColor: 'bg-pink-500',
+    textColor: 'text-pink-800'
+  },
+  myntra: {
+    name: 'Myntra',
+    borderColor: 'border-rose-200',
+    bgColor: 'bg-gradient-to-br from-rose-50/60 to-red-50/20',
+    barColor: 'bg-rose-500',
+    textColor: 'text-rose-800'
+  },
+  ajio: {
+    name: 'AJIO',
+    borderColor: 'border-slate-200',
+    bgColor: 'bg-gradient-to-br from-slate-50/60 to-zinc-50/20',
+    barColor: 'bg-slate-700',
+    textColor: 'text-slate-800'
+  },
+  jiomart: {
+    name: 'JioMart',
+    borderColor: 'border-emerald-200',
+    bgColor: 'bg-gradient-to-br from-emerald-50/60 to-teal-50/20',
+    barColor: 'bg-emerald-500',
+    textColor: 'text-emerald-800'
+  },
+  generic_gst: {
+    name: 'Generic GST',
+    borderColor: 'border-violet-200',
+    bgColor: 'bg-gradient-to-br from-violet-50/60 to-purple-50/20',
+    barColor: 'bg-violet-500',
+    textColor: 'text-violet-800'
+  },
+  other: {
+    name: 'Other Platforms',
+    borderColor: 'border-purple-200',
+    bgColor: 'bg-gradient-to-br from-purple-50/60 to-fuchsia-50/20',
+    barColor: 'bg-purple-500',
+    textColor: 'text-purple-800'
+  }
+};
+
+const getPlatformMeta = (plat) => {
+  const key = String(plat).toLowerCase();
+  return platformMetadata[key] || {
+    name: plat ? plat.toUpperCase() : 'Other Channel',
+    borderColor: 'border-slate-200',
+    bgColor: 'bg-gradient-to-br from-slate-50/60 to-zinc-50/20',
+    barColor: 'bg-slate-500',
+    textColor: 'text-slate-800'
+  };
+};
 
 const DashboardPage = () => {
-  const [bills, setBills] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [startDateInput, setStartDateInput] = useState('');
-  const [endDateInput, setEndDateInput] = useState('');
-  const [platform, setPlatform] = useState('');
-  const [billType, setBillType] = useState('');
-  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 25, pages: 0 });
-  const [deleting, setDeleting] = useState(null);
-  const [showFilters, setShowFilters] = useState(false);
+  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
+  const [recentBills, setRecentBills] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const fetchBills = useCallback(async (page = 1) => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const params = { page, limit: pagination.limit };
-      if (search) params.search = search;
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
-      if (platform) params.platform = platform;
-      if (billType) params.billType = billType;
-      const { data } = await getBills(params);
-      if (data.success) { setBills(data.data); setPagination(data.pagination); }
-    } catch { toast.error('Failed to load bills'); }
-    finally { setLoading(false); }
-  }, [search, startDate, endDate, platform, billType, pagination.limit]);
+      const [statsRes, billsRes] = await Promise.all([
+        getStats(),
+        getBills({ page: 1, limit: 5, sortBy: 'createdAt', sortOrder: 'desc' }),
+      ]);
 
-  const fetchStats = async () => {
-    try {
-      const { data } = await getStats();
-      if (data.success) setStats(data.data);
-    } catch { /* silent */ }
+      if (statsRes.data.success) {
+        setStats(statsRes.data.data);
+      }
+      if (billsRes.data.success) {
+        setRecentBills(billsRes.data.data);
+      }
+    } catch (error) {
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchBills(); fetchStats(); }, [fetchBills]);
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this bill?')) return;
-    setDeleting(id);
-    try { await deleteBill(id); toast.success('Bill deleted'); fetchBills(pagination.page); fetchStats(); }
-    catch { toast.error('Failed to delete'); }
-    finally { setDeleting(null); }
+  const handleQuickFileChange = (e) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      navigate('/', { state: { preloadedFiles: Array.from(files) } });
+    }
   };
 
-  const handleExport = async () => {
-    try {
-      const params = {};
-      if (platform) params.platform = platform;
-      if (billType) params.billType = billType;
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
-      params.format = 'csv';
-      const response = await exportBills(params);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `bills_export_${Date.now()}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success('Export downloaded!');
-    } catch { toast.error('Export failed'); }
+  const getActivityTimeline = () => {
+    if (recentBills.length === 0) return [];
+    
+    return recentBills.map((bill) => {
+      const timeStr = new Date(bill.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const dateStr = new Date(bill.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' });
+      
+      let title = '';
+      let desc = '';
+      let type = ''; // success, error, warning
+
+      if (bill.status === 'completed') {
+        title = `Invoice processed successfully`;
+        desc = `Extracted ₹${bill.amount?.toLocaleString('en-IN') || 0} from ${bill.vendorName || 'Unknown Vendor'}`;
+        type = 'success';
+      } else if (bill.status === 'failed') {
+        title = `Extraction failed`;
+        desc = bill.errorMessage ? `Error: ${bill.errorMessage.slice(0, 60)}...` : `Could not extract text from ${bill.originalFileName}`;
+        type = 'error';
+      } else {
+        title = `Document upload processing`;
+        desc = `Running OCR and extraction pipeline for ${bill.originalFileName}`;
+        type = 'processing';
+      }
+
+      return {
+        id: bill._id,
+        title,
+        desc,
+        time: `${dateStr} at ${timeStr}`,
+        type,
+      };
+    });
   };
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setSearch(searchInput);
-    setStartDate(startDateInput);
-    setEndDate(endDateInput);
-  };
+  const activityFeed = getActivityTimeline();
 
-  const clearFilters = () => {
-    setSearchInput('');
-    setStartDateInput('');
-    setEndDateInput('');
-    setSearch('');
-    setStartDate('');
-    setEndDate('');
-    setPlatform('');
-    setBillType('');
-  };
+  const fmtAmt = (a) => (a != null ? `₹${a.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '₹0.00');
 
-  const StatusBadge = ({ status }) => (
-    <span className={`badge badge-${status}`}>
-      {status === 'processing' && <span className="w-2 h-2 rounded-full bg-indigo-400 mr-1.5 animate-pulse" />}
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
-  );
-
-  const TypeBadge = ({ type }) => (
-    <span className={`badge ${type === 'return' ? 'badge-failed' : 'badge-completed'}`}>
-      {type === 'return' ? '↩ Return' : '📦 Regular'}
-    </span>
-  );
-
-  const PlatformBadge = ({ name }) => {
-    if (!name) return <span className="text-slate-600">—</span>;
-    const colors = {
-      amazon: 'bg-amber-500/15 text-amber-400', flipkart: 'bg-blue-500/15 text-blue-400',
-      meesho: 'bg-pink-500/15 text-pink-400', myntra: 'bg-rose-500/15 text-rose-400',
-      jiomart: 'bg-sky-500/15 text-sky-400', ajio: 'bg-purple-500/15 text-purple-400',
-      personal: 'bg-slate-500/15 text-slate-400',
-    };
-    return <span className={`badge ${colors[name] || 'bg-slate-500/15 text-slate-400'}`}>{name.charAt(0).toUpperCase() + name.slice(1)}</span>;
-  };
-
-  const fmt = (v) => v || '—';
-  const fmtAmt = (a) => a != null ? `₹${a.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—';
-
-  return (
-    <div className="animate-fadeIn">
-      {/* Stats Cards */}
-      {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-          {[
-            { label: 'Total Bills', value: stats.total, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
-            { label: 'Completed', value: stats.completed, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-            { label: 'Processing', value: stats.processing, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-            { label: 'Failed', value: stats.failed, color: 'text-red-400', bg: 'bg-red-500/10' },
-          ].map(s => (
-            <div key={s.label} className={`glass-card p-4 ${s.bg}`}>
-              <p className="text-xs text-slate-500">{s.label}</p>
-              <p className={`text-2xl font-bold ${s.color} mt-1`}>{s.value}</p>
-            </div>
+  if (loading && !stats) {
+    return (
+      <div className="space-y-8 animate-fadeIn">
+        <div className="flex items-center justify-between">
+          <div className="h-10 w-48 skeleton" />
+          <div className="h-10 w-24 skeleton" />
+        </div>
+        
+        {/* Stats skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-28 skeleton w-full rounded-2xl" />
           ))}
         </div>
-      )}
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold gradient-text">Bill Dashboard</h2>
-          <p className="text-sm text-slate-500 mt-1">{pagination.total} total bill{pagination.total !== 1 ? 's' : ''}</p>
+        {/* Platform stats skeleton */}
+        <div className="space-y-4">
+          <div className="h-6 w-36 skeleton" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-56 skeleton w-full rounded-2xl" />
+            ))}
+          </div>
         </div>
-        <div className="flex gap-2">
-          <button onClick={handleExport} className="p-2.5 rounded-xl glass-card text-slate-400 hover:text-emerald-400 transition-colors" title="Export CSV">
-            <HiOutlineDownload className="w-5 h-5" />
-          </button>
-          <button onClick={() => setShowFilters(!showFilters)}
-            className={`p-2.5 rounded-xl glass-card transition-colors ${showFilters ? 'text-indigo-400' : 'text-slate-400 hover:text-white'}`}>
-            <HiOutlineFilter className="w-5 h-5" />
-          </button>
-          <button onClick={() => { fetchBills(pagination.page); fetchStats(); }} className="btn-primary flex items-center gap-2">
-            <HiOutlineRefresh className="w-4 h-4" /> Refresh
-          </button>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 h-96 skeleton w-full rounded-2xl" />
+          <div className="h-96 skeleton w-full rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8 animate-fadeIn">
+      {/* Welcome Title */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Dashboard Overview</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Real-time analytics and OCR extraction summaries
+          </p>
+        </div>
+        <button
+          onClick={loadData}
+          className="btn-primary flex items-center justify-center gap-2"
+        >
+          <HiOutlineRefresh className="w-4 h-4" /> Refresh Data
+        </button>
+      </div>
+
+      {/* Stats Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
+        {[
+          {
+            label: 'Total Bills',
+            value: stats?.total || 0,
+            icon: HiOutlineInboxIn,
+            color: 'text-indigo-600',
+            bg: 'bg-indigo-50',
+          },
+          {
+            label: "Today's Bills",
+            value: stats?.todayCount || 0,
+            icon: HiOutlineCalendar,
+            color: 'text-sky-600',
+            bg: 'bg-sky-50',
+          },
+          {
+            label: 'Monthly Bills',
+            value: stats?.monthCount || 0,
+            icon: HiOutlineDocumentText,
+            color: 'text-violet-600',
+            bg: 'bg-violet-50',
+          },
+          {
+            label: 'Total Vendors',
+            value: stats?.totalVendors || 0,
+            icon: HiOutlineUserGroup,
+            color: 'text-amber-600',
+            bg: 'bg-amber-50',
+          },
+          {
+            label: 'Total Amount',
+            value: fmtAmt(stats?.totalAmount),
+            icon: HiOutlineCurrencyRupee,
+            color: 'text-emerald-600',
+            bg: 'bg-emerald-50',
+            isAmount: true,
+          },
+          {
+            label: 'Success Rate',
+            value: `${stats?.successRate || 0}%`,
+            icon: HiOutlineTrendingUp,
+            color: 'text-rose-600',
+            bg: 'bg-rose-50',
+          },
+        ].map((s) => {
+          const Icon = s.icon;
+          return (
+            <div
+              key={s.label}
+              className="glass-card p-5 bg-white border border-slate-200/80 shadow-sm rounded-2xl flex flex-col justify-between animate-fadeIn"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{s.label}</span>
+                <div className={`w-8 h-8 rounded-lg ${s.bg} flex items-center justify-center`}>
+                  <Icon className={`w-4 h-4 ${s.color}`} />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className={`font-extrabold text-slate-900 tracking-tight ${s.isAmount ? 'text-lg sm:text-xl' : 'text-2xl'}`}>
+                  {s.value}
+                </h3>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Platform-wise Performance Analytics */}
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-lg font-bold text-slate-800">Platform Performance</h3>
+          <p className="text-xs text-slate-400 font-medium">Channel-wise bill processing, return values, and estimated profit margins</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-fadeIn">
+          {stats?.platformStats && stats.platformStats.length > 0 ? (
+            stats.platformStats.map((plat) => {
+              const meta = getPlatformMeta(plat._id);
+              
+              // Calculate values
+              const totalCount = plat.count || 0;
+              const regCount = plat.regularCount || 0;
+              const retCount = plat.returnCount || 0;
+              
+              const regAmt = plat.regularAmount || 0;
+              const retAmt = plat.returnAmount || 0;
+              
+              // Estimated Net Profit / Value = Regular Amount (Sales) - Return Amount (Claims/Returns)
+              const netValue = regAmt - retAmt;
+              const isProfitPositive = netValue >= 0;
+              
+              // Return rate (returns vs total invoices)
+              const returnRate = totalCount > 0 ? Math.round((retCount / totalCount) * 100) : 0;
+
+              return (
+                <div 
+                  key={plat._id} 
+                  className={`glass-card p-5 bg-white border ${meta.borderColor} rounded-2xl shadow-sm hover:scale-[1.01] hover:-translate-y-0.5 transition-all duration-300 ${meta.bgColor} flex flex-col justify-between`}
+                >
+                  <div>
+                    {/* Card Header */}
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100/60">
+                      <span className={`text-xs font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-md ${meta.textColor} bg-white/80 shadow-xs`}>
+                        {meta.name}
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-400 font-mono">
+                        {totalCount} {totalCount === 1 ? 'Bill' : 'Bills'}
+                      </span>
+                    </div>
+
+                    {/* Net Value (Profit) */}
+                    <div className="my-4">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Net profit</span>
+                      <h4 className={`text-xl font-extrabold tracking-tight ${isProfitPositive ? 'text-emerald-600' : 'text-rose-600'} mt-1`}>
+                        {isProfitPositive ? '' : '-'}{fmtAmt(Math.abs(netValue))}
+                      </h4>
+                    </div>
+
+                    {/* Return Rate Progress Bar */}
+                    <div className="space-y-1 mb-4">
+                      <div className="flex justify-between text-[9px] font-bold">
+                        <span className="text-slate-400 uppercase">Return Rate</span>
+                        <span className={`${returnRate > 30 ? 'text-amber-600' : 'text-slate-500'} font-mono`}>
+                          {returnRate}% ({retCount} items)
+                        </span>
+                      </div>
+                      <div className="h-2 bg-slate-200/50 rounded-full overflow-hidden border border-slate-200/20">
+                        <div 
+                          style={{ width: `${returnRate}%` }} 
+                          className={`h-full rounded-full ${meta.barColor} transition-all duration-500`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Detailed Breakdown */}
+                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100/60 bg-white/40 rounded-xl p-3">
+                    <div>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase block">Sales / Orders</span>
+                      <span className="text-xs font-bold text-slate-800 block mt-0.5">{fmtAmt(regAmt)}</span>
+                      <span className="text-[9px] font-semibold text-slate-400 block font-mono">{regCount} completed</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase block">Returns / Claims</span>
+                      <span className="text-xs font-bold text-slate-800 block mt-0.5">{fmtAmt(retAmt)}</span>
+                      <span className="text-[9px] font-semibold text-slate-400 block font-mono">{retCount} returns</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="col-span-full py-8 text-center text-slate-400 text-xs font-medium bg-white rounded-2xl border border-slate-100 p-6 shadow-xs">
+              No platform analytics available. Upload bills to generate performance insights.
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Search & Filters */}
-      <form onSubmit={handleSearch} className="glass-card p-4 mb-4 space-y-3">
-        <div className="flex gap-3">
-          <div className="relative flex-1">
-            <HiOutlineSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
-            <input type="text" placeholder="Search vendor, invoice, order, AWB, SKU..."
-              value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="input-field pl-9" />
+      {/* Details Sections */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Recent Bills List */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-slate-800">Recent Bills</h3>
+            <Link
+              to="/history"
+              className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors"
+            >
+              View all history
+              <HiOutlineArrowRight className="w-4 h-4" />
+            </Link>
           </div>
-          <button type="submit" className="btn-primary whitespace-nowrap">Search</button>
-        </div>
-        {showFilters && (
-          <div className="flex flex-wrap gap-3 pt-2 border-t border-white/5">
-            <div className="relative">
-              <HiOutlineCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
-              <input type="date" value={startDateInput} onChange={(e) => setStartDateInput(e.target.value)} className="input-field pl-9 w-40" />
-            </div>
-            <span className="text-slate-600 self-center">to</span>
-            <input type="date" value={endDateInput} onChange={(e) => setEndDateInput(e.target.value)} className="input-field w-40" />
-            <select value={platform} onChange={(e) => setPlatform(e.target.value)} className="input-field w-40">
-              {PLATFORMS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-            </select>
-            <select value={billType} onChange={(e) => setBillType(e.target.value)} className="input-field w-36">
-              <option value="">All Types</option>
-              <option value="regular">Regular</option>
-              <option value="return">Return</option>
-            </select>
-            {(searchInput || startDateInput || endDateInput || platform || billType) && (
-              <button type="button" onClick={clearFilters} className="text-xs text-red-400 hover:text-red-300 self-center whitespace-nowrap">✕ Clear All</button>
+
+          <div className="glass-card bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+            {recentBills.length === 0 ? (
+              <div className="p-12 text-center">
+                <HiOutlineDocumentText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-600 text-sm font-semibold">No bills uploaded yet</p>
+                <Link to="/" className="text-xs text-indigo-600 hover:underline mt-1 inline-block">
+                  Upload your first bill
+                </Link>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {recentBills.map((bill) => (
+                  <div key={bill._id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                          bill.billType === 'return'
+                            ? 'bg-red-50 text-red-600 border-red-100'
+                            : 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                        }`}
+                      >
+                        {bill.billType === 'return' ? (
+                          <HiOutlineReceiptRefund className="w-5 h-5 text-red-600" />
+                        ) : (
+                          <HiOutlineDocumentText className="w-5 h-5 text-emerald-600" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-800 truncate">
+                          {bill.vendorName || bill.originalFileName || 'Unknown Vendor'}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
+                          <span className="font-mono">{bill.invoiceNumber || 'No invoice #'}</span>
+                          <span>&bull;</span>
+                          <span>{bill.billDate || 'No date'}</span>
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 shrink-0">
+                      <div className="text-right">
+                        <p className="text-sm font-extrabold text-slate-900">
+                          {bill.amount != null ? `₹${bill.amount.toLocaleString('en-IN')}` : '—'}
+                        </p>
+                        <span
+                          className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 uppercase ${
+                            bill.status === 'completed'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : bill.status === 'failed'
+                              ? 'bg-red-50 text-red-700'
+                              : 'bg-amber-50 text-amber-700'
+                          }`}
+                        >
+                          {bill.status}
+                        </span>
+                      </div>
+                      <Link
+                        to={`/bill/${bill._id}`}
+                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
+                        title="View Details"
+                      >
+                        <HiOutlineEye className="w-5 h-5" />
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-        )}
-      </form>
-
-      {/* Table */}
-      {loading ? (
-        <div className="space-y-3">{[...Array(6)].map((_, i) => <div key={i} className="skeleton h-14 w-full" />)}</div>
-      ) : bills.length === 0 ? (
-        <div className="glass-card p-16 text-center">
-          <HiOutlineDocumentText className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-          <p className="text-slate-400 text-lg font-medium">No bills found</p>
-          <p className="text-slate-600 text-sm mt-1">Upload your first bill to get started</p>
-          <Link to="/" className="btn-primary inline-block mt-6">Upload Bill</Link>
         </div>
-      ) : (
-        <>
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Type</th><th>Platform</th><th>Invoice No.</th><th>Order No.</th>
-                  <th>Date</th><th>Vendor</th><th>Amount</th><th>AWB</th>
-                  <th>Delivery</th><th>Payment</th><th>SKU</th>
-                  {/* <th>Items</th> */}<th>Qty</th><th>Status</th><th className="text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bills.map((bill) => (
-                  <tr key={bill._id} className="group">
-                    <td><TypeBadge type={bill.billType} /></td>
-                    <td><PlatformBadge name={bill.supplierPlatform} /></td>
-                    <td className="font-mono text-xs text-cyan-400">{fmt(bill.invoiceNumber)}</td>
-                    <td className="font-mono text-xs text-indigo-300">{fmt(bill.orderNumber)}</td>
-                    <td className="text-slate-400 text-xs whitespace-nowrap">{fmt(bill.billDate)}</td>
-                    <td className="text-slate-200 max-w-[140px] truncate">{fmt(bill.vendorName)}</td>
-                    <td className="font-semibold text-emerald-400 whitespace-nowrap">{fmtAmt(bill.amount)}</td>
-                    <td className="font-mono text-xs text-slate-400 max-w-[120px] truncate" title={bill.awbNumber || ''}>{fmt(bill.awbNumber)}</td>
-                    <td className="text-xs text-slate-400">{fmt(bill.deliveryPartner)}</td>
-                    <td><span className={`badge ${bill.payment === 'COD' || bill.payment === 'Cash on Delivery' ? 'badge-medium' : 'badge-completed'}`}>
-                      {bill.payment || '—'}</span></td>
-                    <td className="font-mono text-xs text-slate-400 max-w-[120px] truncate" title={bill.sku || ''}>
-                      {fmt(bill.sku)}
-                    </td>
-                    {/* <td className="text-center">
-                      {bill.totalItems > 0 ? (
-                        <span className="badge bg-indigo-500/15 text-indigo-400">{bill.totalItems}</span>
-                      ) : '—'}
-                    </td> */}
-                    <td className="text-center text-slate-300">{bill.totalQty || bill.qty || '—'}</td>
-                    <td><StatusBadge status={bill.status} /></td>
-                    <td>
-                      <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                        {bill.cloudinaryUrl && (
-                          <a href={bill.cloudinaryUrl} target="_blank" rel="noopener noreferrer"
-                            className="p-2 rounded-lg hover:bg-sky-500/15 text-slate-400 hover:text-sky-400 transition-colors" title="View File">
-                            <HiOutlineExternalLink className="w-4 h-4" />
-                          </a>
-                        )}
-                        <Link to={`/bill/${bill._id}`} className="p-2 rounded-lg hover:bg-indigo-500/15 text-slate-400 hover:text-indigo-400 transition-colors" title="View">
-                          <HiOutlineEye className="w-4 h-4" />
-                        </Link>
-                        <button onClick={() => handleDelete(bill._id)} disabled={deleting === bill._id}
-                          className="p-2 rounded-lg hover:bg-red-500/15 text-slate-400 hover:text-red-400 transition-colors disabled:opacity-30" title="Delete">
-                          {deleting === bill._id
-                            ? <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
-                            : <HiOutlineTrash className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+        {/* Sidebar Widgets Column */}
+        <div className="space-y-8">
+          {/* Quick Upload Action */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold text-slate-800">Quick Upload</h3>
+            <div className="glass-card bg-white border border-slate-200 shadow-sm rounded-2xl p-5 text-center flex flex-col items-center">
+              <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 mb-3">
+                <HiOutlineCloudUpload className="w-6 h-6" />
+              </div>
+              <h4 className="text-sm font-bold text-slate-800">Process Invoices</h4>
+              <p className="text-xs text-slate-400 mt-1 max-w-[200px] mx-auto">
+                Select invoices or drag them here to trigger background OCR parsing
+              </p>
+              <label className="mt-4 btn-primary text-xs w-full py-2.5 flex items-center justify-center gap-1 cursor-pointer">
+                <span>Select Files</span>
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,image/*,.zip"
+                  onChange={handleQuickFileChange}
+                  className="hidden"
+                />
+              </label>
+            </div>
           </div>
 
-          {bills.some(b => b.totalBillsInFile > 1) && (
-            <p className="text-xs text-slate-600 mt-2">💡 Some uploads contained multiple bills — each row is a separate extracted bill.</p>
-          )}
+          {/* Recent Activity Feed */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold text-slate-800">Recent Activity</h3>
+            <div className="glass-card bg-white border border-slate-200 shadow-sm rounded-2xl p-5">
+              {activityFeed.length === 0 ? (
+                <div className="py-6 text-center text-slate-400 text-xs">No recent activity detected.</div>
+              ) : (
+                <div className="flow-root">
+                  <ul className="-mb-8">
+                    {activityFeed.map((item, itemIdx) => {
+                      let Icon = HiOutlineClock;
+                      let iconColor = 'text-amber-500';
+                      let iconBg = 'bg-amber-50';
 
-          {pagination.pages > 1 && (
-            <div className="flex items-center justify-between mt-6">
-              <p className="text-xs text-slate-500">Page {pagination.page} of {pagination.pages}</p>
-              <div className="flex gap-2">
-                <button onClick={() => fetchBills(pagination.page - 1)} disabled={pagination.page <= 1}
-                  className="p-2 rounded-lg glass-card text-slate-400 hover:text-white disabled:opacity-30 transition-colors">
-                  <HiOutlineChevronLeft className="w-4 h-4" />
-                </button>
-                <button onClick={() => fetchBills(pagination.page + 1)} disabled={pagination.page >= pagination.pages}
-                  className="p-2 rounded-lg glass-card text-slate-400 hover:text-white disabled:opacity-30 transition-colors">
-                  <HiOutlineChevronRight className="w-4 h-4" />
-                </button>
-              </div>
+                      if (item.type === 'success') {
+                        Icon = HiOutlineCheckCircle;
+                        iconColor = 'text-emerald-500';
+                        iconBg = 'bg-emerald-50';
+                      } else if (item.type === 'error') {
+                        Icon = HiOutlineExclamationCircle;
+                        iconColor = 'text-red-500';
+                        iconBg = 'bg-red-50';
+                      }
+
+                      return (
+                        <li key={item.id}>
+                          <div className="relative pb-8">
+                            {itemIdx !== activityFeed.length - 1 ? (
+                              <span
+                                className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-slate-100"
+                                aria-hidden="true"
+                              />
+                            ) : null}
+                            <div className="relative flex space-x-3">
+                              <div>
+                                <span
+                                  className={`h-8 w-8 rounded-full ${iconBg} flex items-center justify-center ring-8 ring-white`}
+                                >
+                                  <Icon className={`w-5 h-5 ${iconColor}`} aria-hidden="true" />
+                                </span>
+                              </div>
+                              <div className="flex-1 min-w-0 pt-0.5">
+                                <p className="text-xs font-bold text-slate-800">{item.title}</p>
+                                <p className="text-[11px] text-slate-500 mt-0.5">{item.desc}</p>
+                                <span className="text-[9px] font-semibold text-slate-400 block mt-1 uppercase">
+                                  {item.time}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
             </div>
-          )}
-        </>
-      )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

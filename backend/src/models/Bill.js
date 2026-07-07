@@ -21,6 +21,14 @@ const lineItemSchema = new mongoose.Schema({
 
 const billSchema = new mongoose.Schema(
   {
+    // ── User Association ──
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      index: true,
+      default: null,
+    },
+
     // ── Upload Tracking ──
     uploadBatchId: { type: String, required: true, index: true },
     originalFile: { type: String, required: true },
@@ -29,7 +37,7 @@ const billSchema = new mongoose.Schema(
     cloudinaryPublicId: { type: String, default: null },
     fileType: {
       type: String,
-      enum: ['pdf', 'jpg', 'jpeg', 'png'],
+      enum: ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'tiff', 'tif', 'bmp', 'heic', 'zip'],
       required: true,
     },
     billIndex: { type: Number, default: 1 },
@@ -105,6 +113,12 @@ const billSchema = new mongoose.Schema(
     extractionConfidence: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
+    },
+
+    // ── Image OCR Diagnostic Metadata (v6) ──
+    ocrMetadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
     },
   },
   { timestamps: true }

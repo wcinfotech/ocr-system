@@ -4,6 +4,7 @@
  * ============================================
  * Production-level Express server with MongoDB
  * Handles bill upload, OCR processing, and data extraction
+ * (Nodemon touch)
  */
 
 require('dotenv').config();
@@ -12,8 +13,13 @@ const cors = require('cors');
 const path = require('path');
 const connectDB = require('./src/config/db');
 const billRoutes = require('./src/routes/billRoutes');
+const authRoutes = require('./src/routes/authRoutes');
+const ticketRoutes = require('./src/routes/ticketRoutes');
+const subscriptionRoutes = require('./src/routes/subscriptionRoutes');
+const adminRoutes = require('./src/routes/adminRoutes');
 const { errorHandler, notFound } = require('./src/middleware/errorHandler');
 const { startCleanupScheduler } = require('./src/services/cleanupService');
+const activityLogger = require('./src/middleware/activityLogger');
 
 const app = express();
 const PORT = process.env.PORT || 5041;
@@ -51,9 +57,16 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Serve uploaded files statically (fallback for local dev)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Apply Activity Logging Middleware
+app.use(activityLogger);
+
 // ============================================
 // API Routes
 // ============================================
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/tickets', ticketRoutes);
+app.use('/api/v1/subscription', subscriptionRoutes);
+app.use('/api/v1/admin', adminRoutes);
 app.use('/api', billRoutes);
 
 // Health check endpoint

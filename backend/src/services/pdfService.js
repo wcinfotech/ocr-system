@@ -1,164 +1,18 @@
 /**
  * ============================================
- * PDF Text & Barcode Extraction Service (v4)
+ * PDF Generation Service
  * ============================================
- * Uses pdf-parse with page-level operator extraction
- * Scans page image streams for barcodes (Code128, QR, etc.)
- * Falls back to high-resolution OCR for scanned PDF pages
+ * Generates beautiful invoices as PDF buffers using pdfkit
  */
 
-// ============================================
-// PDF.js DOM & Image Shims for Node.js
-// Fixes "Image is not defined", "document is not defined", etc.
-// ============================================
-if (typeof global.navigator === 'undefined') {
-  global.navigator = { userAgent: 'node' };
-}
-if (typeof global.Image === 'undefined') {
-  global.Image = class {
-    constructor() {
-      this.onload = null;
-      this.onerror = null;
-      this.src = '';
-    }
-    set src(val) {
-      this._src = val;
-      setTimeout(() => {
-        if (this.onload) this.onload();
-      }, 1);
-    }
-    get src() {
-      return this._src;
-    }
-  };
-}
-
-if (typeof global.document === 'undefined') {
-  const mockElement = {
-    sheet: {
-      cssRules: [],
-      insertRule: () => {}
-    },
-    appendChild: () => {},
-    removeChild: () => {},
-    remove: () => {},
-    setAttribute: () => {},
-    style: {},
-    getElementsByTagName: () => [mockElement],
-    getContext: () => {
-      return {
-        fillText: () => {},
-        measureText: () => ({ width: 10 }),
-        getImageData: () => ({ data: [0, 0, 0, 0] })
-      };
-    }
-  };
-
-  global.document = {
-    documentElement: mockElement,
-    body: mockElement,
-    createElement: () => mockElement,
-    getElementsByTagName: () => [mockElement]
-  };
-}
-
-const pdfParse = require('pdf-parse');
+const PDFDocument = require('pdfkit');
+const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
 const fs = require('fs');
+const { extractTextFromImage } = require('./ocrService');
 const path = require('path');
-const Tesseract = require('tesseract.js');
 
 /**
- * Render a specific PDF page to an image using pdfjs-dist and OCR it.
- * This bypasses pdf-parse's broken internal image extraction on Node.
- */
-const ocrPdfPageWithPdfJs = async (filePath, pageNumber) => {
-  try {
-    const { createCanvas, Image } = require('@napi-rs/canvas');
-    if (!global.window || !global.window.document) {
-      global.window = global;
-      global.Image = Image;
-      global.HTMLElement = class {};
-      global.history = {};
-      global.location = { href: 'http://localhost' };
-      global.navigator = { userAgent: 'node' };
-      global.requestAnimationFrame = (cb) => setTimeout(cb, 16);
-      global.document = {
-        createElement: (tag) => {
-          if (tag === 'style') return { sheet: { insertRule: () => {} } };
-          if (tag === 'canvas') return createCanvas(1, 1);
-          return { getContext: () => null };
-        },
-        getElementsByTagName: () => [{ appendChild: () => {} }],
-        documentElement: { style: {} }
-      };
-    }
-    const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
-    
-    const data = new Uint8Array(fs.readFileSync(filePath));
-    const doc = await pdfjs.getDocument({
-      data, 
-      standardFontDataUrl: path.join(__dirname, '../../../node_modules/pdfjs-dist/standard_fonts/')
-    }).promise;
-    
-    if (pageNumber > doc.numPages) return '';
-    
-    const page = await doc.getPage(pageNumber);
-    const viewport = page.getViewport({ scale: 2.0 });
-    const canvas = createCanvas(viewport.width, viewport.height);
-    const ctx = canvas.getContext('2d');
-    
-    await page.render({ canvasContext: ctx, viewport }).promise;
-    const pngBuffer = canvas.toBuffer('image/png');
-    
-    const ocrResult = await Tesseract.recognize(pngBuffer, 'eng', {
-      langPath: path.join(__dirname, '../../'),
-      gzip: false,
-    });
-    
-    let text = ocrResult.data.text || '';
-    
-    // Try barcode scanning as well
-    try {
-      const { scanBarcode } = require('./ocrService');
-      const barcodeResult = await scanBarcode(pngBuffer);
-      if (barcodeResult && barcodeResult.text) {
-        text = `AWB_BARCODE: ${barcodeResult.text}\nBARCODE_FORMAT: ${barcodeResult.format}\n\n` + text;
-      }
-    } catch (bcErr) {
-      console.warn(`Barcode scan failed on page ${pageNumber}: ${bcErr.message}`);
-    }
-    
-    return text;
-  } catch (err) {
-    console.error(`⚠️ OCR rendering failed for page ${pageNumber}: ${err.message}`);
-    return '';
-  }
-};
-
-// Custom page render — appends form-feed for page boundaries
-const renderPageWithFormFeed = (pageData) => {
-  const render_options = {
-    normalizeWhitespace: false,
-    disableCombineTextItems: false
-  };
-
-  return pageData.getTextContent(render_options)
-    .then(function (textContent) {
-      let lastY, text = '';
-      for (let item of textContent.items) {
-        if (lastY === item.transform[5] || !lastY) {
-          text += item.str;
-        } else {
-          text += '\n' + item.str;
-        }
-        lastY = item.transform[5];
-      }
-      return text + '\n\f\n';
-    });
-};
-
-/**
- * Extract text from a PDF file with OCR fallback
+ * Extract text from a PDF file with OCR fallback using pdfjs-dist directly
  * @param {string} filePath - Absolute path to the PDF file
  * @returns {Promise<{text: string, pages: number, info: object, isTextPDF: boolean, ocrUsed: boolean}>}
  */
@@ -168,74 +22,65 @@ const extractTextFromPDF = async (filePath) => {
   try {
     const dataBuffer = fs.readFileSync(filePath);
 
-    // Parse PDF with text extraction
-    const data = await pdfParse(dataBuffer, {
-      max: 200,  // Support up to 200 pages
-      pagerender: renderPageWithFormFeed
-    });
+    // Parse PDF with pdfjs-dist
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(dataBuffer) });
+    const pdfDoc = await loadingTask.promise;
+    const numPages = pdfDoc.numPages;
 
     let extractedText = '';
-    const rawPages = data.text.split('\f');
-    let pagesProcessed = 0;
-
-    for (let i = 0; i < rawPages.length; i++) {
-      let pageText = rawPages[i].trim();
-      pagesProcessed++;
-
-      // If page is mostly empty, it's likely an image (like an Amazon label)
-      if (pageText.replace(/\s+/g, '').length < 30) {
-        console.log(`📸 Page ${i + 1} appears image-based. Rendering & OCRing via pdfjs-dist...`);
-        const ocrText = await ocrPdfPageWithPdfJs(filePath, i + 1);
-        if (ocrText && ocrText.trim().length > 0) {
-          pageText = ocrText;
-          ocrUsed = true;
-          console.log(`✅ Page ${i + 1} OCR Succeeded: ${ocrText.length} chars`);
-        }
-      }
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      const page = await pdfDoc.getPage(pageNum);
+      const textContent = await page.getTextContent();
       
-      extractedText += pageText + '\n\f\n';
+      let lastY, text = '';
+      for (let item of textContent.items) {
+        if (lastY === item.transform[5] || !lastY) {
+          text += item.str;
+        } else {
+          text += '\n' + item.str;
+        }
+        lastY = item.transform[5];
+      }
+      extractedText += text + '\n\f\n';
     }
 
     const meaningfulText = extractedText.replace(/\s+/g, ' ').trim();
     const isTextPDF = meaningfulText.length > 50;
 
-    // Global OCR Fallback: If EVERYTHING was still poor
+    // OCR Fallback: If text extraction yielded poor results
     if (!isTextPDF || meaningfulText.length < 100) {
-      console.log('📸 Entire PDF appears scanned/image-based. Attempting global OCR fallback...');
+      console.log('📸 PDF appears scanned/image-based. Attempting OCR fallback...');
       try {
-        const { extractTextFromImage } = require('./ocrService');
         const ocrResult = await extractTextFromImage(filePath, true);
         if (ocrResult.text && ocrResult.text.trim().length > extractedText.trim().length) {
           extractedText = ocrResult.text;
           ocrUsed = true;
-          if (ocrResult.barcode) {
-            extractedText = `AWB_BARCODE: ${ocrResult.barcode.text}\nBARCODE_FORMAT: ${ocrResult.barcode.format}\n\n` + extractedText;
-          }
+          console.log(`✅ OCR fallback successful: ${extractedText.length} chars`);
         }
       } catch (ocrErr) {
-        console.warn(`⚠️ Global OCR fallback failed: ${ocrErr.message}`);
+        console.warn(`⚠️  OCR fallback failed: ${ocrErr.message}`);
       }
     }
 
+    // Attempt to extract metadata
+    const metadata = await pdfDoc.getMetadata().catch(() => null);
+    const info = metadata ? metadata.info : {};
+
     return {
       text: extractedText,
-      pages: pagesProcessed || data.numpages,
-      info: data.info || {},
+      pages: numPages,
+      info: info || {},
       isTextPDF,
       ocrUsed,
     };
   } catch (error) {
+    // If PDF parsing itself fails, try OCR on the file directly
     console.error(`PDF parsing error: ${error.message}`);
     console.log('📸 Attempting direct OCR on PDF...');
     try {
-      const { extractTextFromImage } = require('./ocrService');
       const ocrResult = await extractTextFromImage(filePath, true);
-      let textVal = ocrResult.text || '';
-      if (ocrResult.barcode) {
-        textVal = `AWB_BARCODE: ${ocrResult.barcode.text}\nBARCODE_FORMAT: ${ocrResult.barcode.format}\n\n` + textVal;
-      }
       return {
-        text: textVal,
+        text: ocrResult.text || '',
         pages: 1,
         info: {},
         isTextPDF: false,
@@ -247,4 +92,196 @@ const extractTextFromPDF = async (filePath) => {
   }
 };
 
-module.exports = { extractTextFromPDF };
+
+/**
+ * Generate a PDF Invoice Buffer
+ * @param {Object} invoice - Invoice details
+ * @param {string} invoice.invoiceId - Invoice ID
+ * @param {string} invoice.date - Date formatted
+ * @param {string} invoice.userName - Customer Name
+ * @param {string} invoice.userEmail - Customer Email
+ * @param {string} invoice.plan - Plan Name
+ * @param {string} invoice.billingPeriod - Billing Cycle
+ * @param {number} invoice.price - Subtotal price (number)
+ * @returns {Promise<Buffer>} - Resolves to PDF Buffer
+ */
+const generateInvoicePDF = (invoice) => {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const chunks = [];
+
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', (err) => reject(err));
+
+    // Colors
+    const primaryColor = '#4f46e5'; // Indigo
+    const darkSlate = '#1e293b';
+    const lightGrey = '#f8fafc';
+    const borderGrey = '#e2e8f0';
+
+    // Header / Branding
+    doc
+      .fillColor(primaryColor)
+      .fontSize(22)
+      .font('Helvetica-Bold')
+      .text('BillScan Pro', 50, 50);
+
+    doc
+      .fillColor(darkSlate)
+      .fontSize(9)
+      .font('Helvetica')
+      .text('Automated Invoice Processing System', 50, 75);
+
+    // INVOICE title
+    doc
+      .fillColor(primaryColor)
+      .fontSize(24)
+      .font('Helvetica-Bold')
+      .text('INVOICE', 350, 50, { align: 'right', width: 200 });
+
+    doc
+      .fillColor(darkSlate)
+      .fontSize(9)
+      .font('Helvetica-Bold')
+      .text(`Invoice ID: #${invoice.invoiceId}`, 350, 75, { align: 'right', width: 200 })
+      .text(`Date: ${invoice.date}`, 350, 90, { align: 'right', width: 200 });
+
+    // Draw horizontal divider rule
+    doc
+      .moveTo(50, 115)
+      .lineTo(550, 115)
+      .strokeColor(borderGrey)
+      .lineWidth(1)
+      .stroke();
+
+    // Bill To details
+    doc
+      .fillColor(primaryColor)
+      .fontSize(10)
+      .font('Helvetica-Bold')
+      .text('BILL TO:', 50, 135);
+
+    doc
+      .fillColor(darkSlate)
+      .fontSize(11)
+      .font('Helvetica-Bold')
+      .text(invoice.userName, 50, 150);
+
+    doc
+      .fillColor('#64748b')
+      .fontSize(9)
+      .font('Helvetica')
+      .text(invoice.userEmail, 50, 165);
+
+    // Company / From details
+    doc
+      .fillColor(primaryColor)
+      .fontSize(10)
+      .font('Helvetica-Bold')
+      .text('FROM:', 350, 135, { align: 'right', width: 200 });
+
+    doc
+      .fillColor(darkSlate)
+      .fontSize(10)
+      .font('Helvetica-Bold')
+      .text('BillScan Pro Ltd.', 350, 150, { align: 'right', width: 200 });
+
+    doc
+      .fillColor('#64748b')
+      .fontSize(9)
+      .font('Helvetica')
+      .text('support@billscanpro.com', 350, 165, { align: 'right', width: 200 });
+
+    // Table Header
+    const tableTop = 210;
+    doc
+      .rect(50, tableTop, 500, 25)
+      .fill(lightGrey);
+
+    doc
+      .fillColor(primaryColor)
+      .fontSize(9)
+      .font('Helvetica-Bold')
+      .text('Plan Description', 60, tableTop + 8);
+
+    doc
+      .text('Qty', 320, tableTop + 8)
+      .text('Unit Price', 380, tableTop + 8)
+      .text('Amount', 480, tableTop + 8, { align: 'right', width: 60 });
+
+    // Table Row
+    const rowTop = tableTop + 25;
+    doc
+      .fillColor(darkSlate)
+      .fontSize(10)
+      .font('Helvetica')
+      .text(`BillScan Pro - ${invoice.plan} Plan (${invoice.billingPeriod})`, 60, rowTop + 10, { width: 240 })
+      .text('1', 320, rowTop + 10)
+      .text(`INR ${invoice.price.toLocaleString('en-IN')}`, 380, rowTop + 10)
+      .font('Helvetica-Bold')
+      .text(`INR ${invoice.price.toLocaleString('en-IN')}`, 480, rowTop + 10, { align: 'right', width: 60 });
+
+    // Bottom Divider
+    doc
+      .moveTo(50, rowTop + 40)
+      .lineTo(550, rowTop + 40)
+      .strokeColor(borderGrey)
+      .stroke();
+
+    // Calculations
+    const calcTop = rowTop + 55;
+    const tax = Math.round(invoice.price * 0.18);
+    const total = invoice.price + tax;
+
+    doc
+      .fillColor('#64748b')
+      .fontSize(9)
+      .font('Helvetica')
+      .text('Subtotal:', 350, calcTop)
+      .text(`INR ${invoice.price.toLocaleString('en-IN')}`, 480, calcTop, { align: 'right', width: 60 });
+
+    doc
+      .text('GST (18%):', 350, calcTop + 15)
+      .text(`INR ${tax.toLocaleString('en-IN')}`, 480, calcTop + 15, { align: 'right', width: 60 });
+
+    // Grand Total Row
+    doc
+      .rect(340, calcTop + 35, 210, 30)
+      .fill('#eff6ff');
+
+    doc
+      .fillColor(primaryColor)
+      .fontSize(11)
+      .font('Helvetica-Bold')
+      .text('Grand Total:', 350, calcTop + 45)
+      .text(`INR ${total.toLocaleString('en-IN')}`, 450, calcTop + 45, { align: 'right', width: 90 });
+
+    // Payment Status Stamp
+    doc
+      .fillColor('#10b981')
+      .fontSize(16)
+      .font('Helvetica-Bold')
+      .text('PAID', 60, calcTop + 10, { align: 'left' });
+
+    doc
+      .fillColor('#64748b')
+      .fontSize(8)
+      .font('Helvetica')
+      .text('Thank you for subscribing to BillScan Pro! Dynamic extraction features have been unlocked.', 60, calcTop + 30, { width: 250 });
+
+    // Footer note
+    doc
+      .fillColor('#94a3b8')
+      .fontSize(8)
+      .font('Helvetica')
+      .text('If you have any questions about this invoice, contact support@billscanpro.com', 50, doc.page.height - 70, { align: 'center', width: 500 });
+
+    doc.end();
+  });
+};
+
+module.exports = {
+  generateInvoicePDF,
+  extractTextFromPDF,
+};

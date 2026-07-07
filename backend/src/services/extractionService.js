@@ -49,12 +49,19 @@ const detectPlatform = (text) => {
     }
   }
 
-  // Content keywords scoring
+  // Content keywords scoring (original exact matches)
   if (/amazon/i.test(text)) scores.amazon += 5;
   if (/flipkart|retail\s*net|ekart/i.test(text)) scores.flipkart += 5;
   if (/meesho|fashnear/i.test(text)) scores.meesho += 5;
   if (/ajio|reliance/i.test(text)) scores.ajio += 5;
   if (/myntra|vector\s*e\-commerce/i.test(text)) scores.myntra += 5;
+
+  // OCR-tolerant fuzzy keyword scoring (helps image-based extraction)
+  if (/amaz[o0]n|ama[z2][o0]n|amazan|amzon/i.test(text)) scores.amazon += 5;
+  if (/fl[i1I]pkart|flipcart|f[lI1][i1I]pkart|fiipkart/i.test(text)) scores.flipkart += 5;
+  if (/meesh[o0]|m[e3][e3]sh[o0]/i.test(text)) scores.meesho += 5;
+  if (/aj[i1I][o0]|aji0/i.test(text)) scores.ajio += 5;
+  if (/myntr[a@]|myn[tT]ra/i.test(text)) scores.myntra += 5;
 
   // Find highest scoring platform
   let bestPlatform = 'other';
@@ -80,6 +87,7 @@ const detectPlatform = (text) => {
 // ════════════════════════════════════════════
 
 const extractField = (text, patterns, cleanFn) => {
+  // Strategy 1: Standard full-text extraction
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (match && match[1]) {
@@ -87,6 +95,20 @@ const extractField = (text, patterns, cleanFn) => {
       if (cleaned) return cleaned;
     }
   }
+
+  // Strategy 2: Line-by-line extraction (better for OCR text with line breaks)
+  // This prevents regex from capturing across newline boundaries
+  const lines = text.split(/\n/);
+  for (const pattern of patterns) {
+    for (const line of lines) {
+      const match = line.match(pattern);
+      if (match && match[1]) {
+        const cleaned = cleanFn ? cleanFn(match[1]) : match[1].trim();
+        if (cleaned && cleaned.length >= 2) return cleaned;
+      }
+    }
+  }
+
   return null;
 };
 
@@ -94,6 +116,14 @@ const extractDateField = (text, patterns) => {
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (match && match[1]) return match[1].trim();
+  }
+  // Line-by-line fallback for OCR text
+  const lines = text.split(/\n/);
+  for (const pattern of patterns) {
+    for (const line of lines) {
+      const match = line.match(pattern);
+      if (match && match[1]) return match[1].trim();
+    }
   }
   return null;
 };
@@ -322,7 +352,7 @@ const extractCourierAndSeller = (text) => {
     }
   }
 
-  const sellerMatch = text.match(/(?:sold\s*by|seller\s*name|supplier|shipper)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s&\.\,\-]{2,60})/i);
+  const sellerMatch = text.match(/(?:sold\s*by|seller\s*name|supplier|shipper)\s*[:\-]?\s*([^\n\r]{2,60})/i);
   if (sellerMatch) {
     result.sellerName = cleanVendorName(sellerMatch[1]);
   }
@@ -389,14 +419,30 @@ const applyOcrFallbacks = (bill, text, fileName) => {
     }
   }
 
-  // 3. AWB Number Fallback
+  // 3. AWB Number Fallback (with courier-specific patterns)
   if (!bill.awbNumber) {
     const looseAwbPatterns = [
+      // Amazon AWB (OCR-tolerant prefixes)
       /\b((?:ATS|AT5|AIS|AJ5)\d{10,12})\b/i,
+      // Flipkart/Ekart AWB
       /\b((?:FM|PM|FN)[A-Z0-9]{2}\d{8,14})\b/i,
+      // Ekart specific (EKRT prefix)
+      /\b(EKRT\d{8,14})\b/i,
+      // Delhivery AWB patterns
+      /\b(\d{18})\b/,
+      // Ecom Express patterns (starts with 36)
       /\b(36\d{10})\b/,
+      // BlueDart patterns (starts with 13)
       /\b(13\d{12})\b/,
+      // XpressBees patterns (starts with 12)
+      /\b(12\d{7,10})\b/,
+      // DTDC patterns
+      /\b([A-Z]\d{8,9})\b/,
+      // Shadowfax patterns
+      /\b(SF\d{10,14})\b/i,
+      // Generic 12-digit AWB
       /\b(\d{12})\b/,
+      // Fallback: any 10-20 digit number
       /\b(\d{10,20})\b/
     ];
     for (const pat of looseAwbPatterns) {
@@ -485,7 +531,7 @@ const applyOcrFallbacks = (bill, text, fileName) => {
 
   // 9. Seller Name Fallback
   if (!bill.sellerName && !bill.vendorName) {
-    const sellerMatch = text.match(/(?:seller|supplier|vendor|sold by)\s*[:\-\|\s]?\s*([A-Za-z0-9][A-Za-z0-9\s&\.\,\-]{2,40})/i);
+    const sellerMatch = text.match(/(?:seller|supplier|vendor|sold by)\s*[:\-\|\s]?\s*([^\n\r]{2,50})/i);
     if (sellerMatch && sellerMatch[1]) {
       const cleaned = cleanVendorName(sellerMatch[1]);
       if (cleaned) {
@@ -497,16 +543,27 @@ const applyOcrFallbacks = (bill, text, fileName) => {
 
   // 10. SKU Fallback
   if (!bill.sku) {
-    const skuMatches = [...text.matchAll(/\b([A-Z0-9\-_]{6,20})\b/g)];
-    for (const match of skuMatches) {
-      const cleaned = cleanSkuField(match[1]);
-      if (cleaned && cleaned.length >= 6 && 
-          cleaned !== bill.orderNumber && 
-          cleaned !== bill.invoiceNumber && 
-          cleaned !== bill.awbNumber && 
-          cleaned !== bill.gstNumber) {
-        bill.sku = cleaned;
-        break;
+    const hasAmount = bill.amount || /\b(?:amount|total|payable|net|₹|\$)\b/i.test(text);
+    const hasInvoice = bill.invoiceNumber || /\b(?:invoice|bill|inv\b)/i.test(text);
+    
+    // Only run SKU fallback if the page seems to be an invoice, not a bare shipping label
+    if (hasAmount || hasInvoice) {
+      const skuMatches = [...text.matchAll(/\b([A-Z0-9\-_]{6,20})\b/g)];
+      for (const match of skuMatches) {
+        const cleaned = cleanSkuField(match[1]);
+        if (cleaned && cleaned.length >= 6 && 
+            cleaned !== bill.orderNumber && 
+            cleaned !== bill.invoiceNumber && 
+            cleaned !== bill.awbNumber && 
+            cleaned !== bill.gstNumber) {
+          
+          // Real SKU/ASINs always have at least one digit OR a hyphen/underscore
+          // This prevents address city names like "BILASPUR" or payment states like "PREPAID" from matching
+          if (/\d/.test(cleaned) || /[\-_]/.test(cleaned)) {
+            bill.sku = cleaned;
+            break;
+          }
+        }
       }
     }
   }
@@ -702,6 +759,57 @@ const extractSingleBill = (text, fileName = '') => {
   return bill;
 };
 
+/**
+ * Secondary extraction pass for image-based OCR.
+ * Re-runs extraction on normalized text when critical fields are missing.
+ * This is ONLY called from the image pipeline (billController.js), never for PDFs.
+ *
+ * @param {object} bill - Primary extraction result
+ * @param {string} normalizedText - OCR text after normalization
+ * @param {string} fileName - Original filename
+ * @returns {object} - Enhanced bill with recovered fields
+ */
+const secondaryExtractionPass = (bill, normalizedText, fileName = '') => {
+  if (!normalizedText || typeof normalizedText !== 'string') return bill;
+
+  const missingCritical = [
+    !bill.invoiceNumber && 'invoiceNumber',
+    !bill.orderNumber && 'orderNumber',
+    !bill.awbNumber && 'awbNumber',
+    !bill.amount && 'amount',
+  ].filter(Boolean);
+
+  if (missingCritical.length === 0) return bill;
+
+  console.log(`🔄 Secondary extraction pass for image. Missing: [${missingCritical.join(', ')}]`);
+
+  // Re-run extraction on the normalized text
+  const secondBill = extractSingleBill(normalizedText, fileName);
+
+  // Fill in missing fields from secondary extraction
+  for (const field of missingCritical) {
+    if (secondBill[field] && !bill[field]) {
+      bill[field] = secondBill[field];
+      console.log(`   ✅ Recovered ${field}: ${secondBill[field]}`);
+    }
+  }
+
+  // Also recover other fields that might have been missed
+  const additionalFields = ['platform', 'gstNumber', 'customerName', 'sellerName', 'deliveryPartner', 'sku', 'billDate'];
+  for (const field of additionalFields) {
+    if (secondBill[field] && !bill[field]) {
+      bill[field] = secondBill[field];
+    }
+  }
+
+  // Recalculate confidence
+  const confidence = calculateConfidence(bill);
+  bill.extractionConfidence = confidence.scores;
+  bill.confidence = confidence.average;
+
+  return bill;
+};
+
 // Helper Qty
 const extractQty = (text) => {
   if (!text) return null;
@@ -886,12 +994,12 @@ const extractBillData = (rawText, fileName = '') => {
     let matchedIdx = -1;
 
     // Determine if this page is a "data-poor" label page
-    const pageIsLabelOnly = !pageBill.totalAmount && (!pageBill.items || pageBill.items.length === 0);
+    const pageIsLabelOnly = !pageBill.amount && (!pageBill.items || pageBill.items.length === 0);
 
     for (let idx = mergedBills.length - 1; idx >= 0; idx--) {
       const existing = mergedBills[idx];
       let matches = false;
-      const existingIsLabelOnly = !existing.totalAmount && (!existing.items || existing.items.length === 0);
+      const existingIsLabelOnly = !existing.amount && (!existing.items || existing.items.length === 0);
 
       // ── Anti-merge guard: DIFFERENT identifiers → NEVER merge ──
       // Skip the strict anti-merge guard if one of the pages is just a shipping label
@@ -987,4 +1095,7 @@ module.exports = {
   extractBillData,
   splitIntoBills: (txt) => txt.split(/\f/).map(s => s.trim()).filter(s => s.length > 10),
   extractSingleBill,
+  secondaryExtractionPass,
+  detectPlatform,
+  calculateConfidence,
 };

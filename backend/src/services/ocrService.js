@@ -1,10 +1,11 @@
 /**
  * ============================================
- * OCR & Barcode Service (v5) - Tesseract.js + Sharp + ZXing
+ * OCR & Barcode Service (v6) - Tesseract.js + Sharp + ZXing
  * ============================================
  * Preprocessing: auto-rotate, grayscale, scale/DPI, contrast, sharpen
  * Barcodes: Code128, EAN, UPC, QR, PDF417, DataMatrix
- * Multi-pass OCR: Original, Enhanced, Threshold, Upscaled with auto-selection
+ * Multi-pass OCR: Original, Enhanced, Threshold, Upscaled, HighContrast with auto-selection
+ * v6: Added Pass 5 (High Contrast Invoice Mode), multi-attempt barcode, debug logs
  */
 
 // Global polyfill for browser-dependent libraries
@@ -80,11 +81,9 @@ const preprocessImage = async (imageInput, outPath = null) => {
  * @returns {Promise<{text: string, format: string}|null>}
  */
 const scanBarcode = async (imageInput) => {
-  try {
-    let image = sharp(imageInput);
-    
-    // We get raw pixel values with alpha channel
-    const { data, info } = await image
+  // Helper to decode barcode from a sharp pipeline
+  const decodeFromBuffer = async (buf) => {
+    const { data, info } = await sharp(buf)
       .ensureAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true });
@@ -100,19 +99,42 @@ const scanBarcode = async (imageInput) => {
     const luminanceSource = new RGBLuminanceSource(rgbArray, info.width, info.height);
     const binaryBitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource));
     const reader = new MultiFormatReader();
-    
     const decodeResult = reader.decode(binaryBitmap);
-    if (decodeResult) {
-      return {
-        text: decodeResult.getText(),
-        format: decodeResult.getBarcodeFormat().toString(),
-      };
-    }
-    return null;
-  } catch (err) {
-    // ZXing throws if no barcode is found; return null quietly
-    return null;
-  }
+    return decodeResult ? { text: decodeResult.getText(), format: decodeResult.getBarcodeFormat().toString() } : null;
+  };
+
+  try {
+    // Attempt 1: Original image
+    const result = await decodeFromBuffer(imageInput);
+    if (result) return result;
+  } catch (err) { /* no barcode on original */ }
+
+  try {
+    // Attempt 2: Threshold + high contrast version (for low-quality prints)
+    const enhanced = await sharp(imageInput)
+      .grayscale()
+      .normalize()
+      .threshold(140)
+      .png()
+      .toBuffer();
+    const result = await decodeFromBuffer(enhanced);
+    if (result) return result;
+  } catch (err) { /* no barcode on enhanced */ }
+
+  try {
+    // Attempt 3: Upscaled version (for small barcodes on labels)
+    const upscaled = await sharp(imageInput)
+      .resize({ width: 2500, fit: 'inside', withoutEnlargement: false, kernel: 'lanczos3' })
+      .grayscale()
+      .normalize()
+      .sharpen({ sigma: 2.0 })
+      .png()
+      .toBuffer();
+    const result = await decodeFromBuffer(upscaled);
+    if (result) return result;
+  } catch (err) { /* no barcode on upscaled */ }
+
+  return null;
 };
 
 /**
@@ -228,9 +250,35 @@ const extractTextFromImage = async (filePath, preprocess = true) => {
       console.warn(`⚠️ Pass 'Upscaled' failed to prepare: ${e.message}`);
     }
 
+    // Pass 5: High Contrast Invoice Mode (Aggressive binarization + edge enhancement)
+    // Best for camera-captured bills, WhatsApp compressed images, and scanned receipts
+    try {
+      let p5 = sharp(fileBuffer).rotate().grayscale();
+      // Aggressive upscale for small/compressed images
+      const meta = await sharp(fileBuffer).metadata();
+      const targetW = Math.max(2500, (meta.width || 1000) * 2);
+      p5 = p5.resize({ width: Math.min(targetW, 4000), fit: 'inside', withoutEnlargement: false, kernel: 'lanczos3' });
+      // Heavy contrast normalization
+      p5 = p5.normalize();
+      try {
+        p5 = p5.clahe({ width: 100, height: 100, maxSlope: 5 });
+      } catch (e) {}
+      // Aggressive linear contrast stretch (push text to pure black, background to white)
+      p5 = p5.linear(2.2, -0.5);
+      // Strong sharpening to crisp up edges
+      p5 = p5.sharpen({ sigma: 2.5 });
+      // Final adaptive threshold for clean binary output
+      p5 = p5.threshold(110);
+      const p5Buffer = await p5.png().toBuffer();
+      ocrPasses.push({ name: 'HighContrast', buffer: p5Buffer });
+    } catch (e) {
+      console.warn(`⚠️ Pass 'HighContrast' failed to prepare: ${e.message}`);
+    }
+
     // Execute OCR passes
     let bestResult = null;
     let bestScore = -1;
+    const passResults = []; // Collect all pass results for debug logging
 
     for (const pass of ocrPasses) {
       try {
@@ -244,6 +292,7 @@ const extractTextFromImage = async (filePath, preprocess = true) => {
         const confidence = result.data.confidence || 0;
         const score = scoreOcrResult(text, confidence);
 
+        passResults.push({ name: pass.name, confidence, score: score.toFixed(1), chars: text.length });
         console.log(`   Pass ${pass.name} completed. Confidence: ${confidence}%, Score: ${score.toFixed(1)}, Chars: ${text.length}`);
 
         if (score > bestScore) {
@@ -253,22 +302,27 @@ const extractTextFromImage = async (filePath, preprocess = true) => {
             confidence,
             ocrUsed: true,
             barcode,
-            passUsed: pass.name
+            passUsed: pass.name,
+            allPassResults: passResults,
           };
         }
 
         // Optimization: Early exit if we get a highly confident read with all key markers
         if (confidence >= 85 && score >= 140) {
           console.log(`   ⚡ Early exit triggered on Pass: ${pass.name} (Confidence: ${confidence}%)`);
+          bestResult.allPassResults = passResults;
           return bestResult;
         }
       } catch (passErr) {
+        passResults.push({ name: pass.name, confidence: 0, score: '0', chars: 0, error: passErr.message });
         console.error(`   ❌ Pass ${pass.name} failed: ${passErr.message}`);
       }
     }
 
     if (bestResult) {
+      bestResult.allPassResults = passResults;
       console.log(`✅ Multi-Pass OCR completed. Best Pass: ${bestResult.passUsed} (Confidence: ${bestResult.confidence}%)`);
+      console.log(`   All pass results: ${JSON.stringify(passResults)}`);
       return bestResult;
     }
 

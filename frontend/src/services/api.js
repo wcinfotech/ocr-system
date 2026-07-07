@@ -18,6 +18,18 @@ const api = axios.create({
   timeout: 300000, // 5 min timeout for large batch processing
 });
 
+// Interceptor to automatically attach token to requests
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 // Single file upload (backward compatible)
 export const uploadBill = (file, onProgress) => {
   const formData = new FormData();
@@ -71,5 +83,26 @@ export const updateBill = (id, data) => api.put(`/bill/${id}`, data);
 
 // Reprocess bill details (v4)
 export const reprocessBill = (id) => api.post(`/bill/${id}/reprocess`);
+
+// Auth endpoints
+export const register = (data) => api.post('/v1/auth/register', data);
+export const login = (data) => api.post('/v1/auth/login', data);
+export const getMe = () => api.get('/v1/auth/me');
+export const updateProfile = (data) => api.put('/v1/auth/me', data);
+export const forgotPassword = (data) => api.post('/v1/auth/forgot-password', data);
+export const resetPassword = (data) => api.post('/v1/auth/reset-password', data);
+export const verifyOtp = (data) => api.post('/v1/auth/verify-otp', data);
+
+// Support ticket endpoints
+export const createTicket = (data) => api.post('/v1/tickets', data);
+export const getTickets = () => api.get('/v1/tickets');
+export const getTicketById = (id) => api.get(`/v1/tickets/${id}`);
+export const replyTicket = (id, message) => api.post(`/v1/tickets/${id}/reply`, { message });
+
+// Subscription endpoints
+export const getSubscriptionPlans = () => api.get('/v1/subscription/plans');
+export const buySubscription = (data) => api.post('/v1/subscription/buy', data);
+export const getInvoices = () => api.get('/v1/subscription/invoices');
+export const downloadInvoice = (invoiceId) => api.get(`/v1/subscription/invoices/${invoiceId}/download`, { responseType: 'blob' });
 
 export default api;
