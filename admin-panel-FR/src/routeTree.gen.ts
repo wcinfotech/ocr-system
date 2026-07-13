@@ -14,6 +14,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AdminRouteImport } from './routes/_admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminUsersRouteImport } from './routes/_admin.users'
+import { Route as AdminTestimonialsRouteImport } from './routes/_admin.testimonials'
 import { Route as AdminSupportRouteImport } from './routes/_admin.support'
 import { Route as AdminSubscriptionsRouteImport } from './routes/_admin.subscriptions'
 import { Route as AdminSettingsRouteImport } from './routes/_admin.settings'
@@ -53,6 +54,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminTestimonialsRoute = AdminTestimonialsRouteImport.update({
+  id: '/testimonials',
+  path: '/testimonials',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminSupportRoute = AdminSupportRouteImport.update({
@@ -156,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AdminSettingsRoute
   '/subscriptions': typeof AdminSubscriptionsRoute
   '/support': typeof AdminSupportRoute
+  '/testimonials': typeof AdminTestimonialsRoute
   '/users': typeof AdminUsersRoute
 }
 export interface FileRoutesByTo {
@@ -178,6 +185,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AdminSettingsRoute
   '/subscriptions': typeof AdminSubscriptionsRoute
   '/support': typeof AdminSupportRoute
+  '/testimonials': typeof AdminTestimonialsRoute
   '/users': typeof AdminUsersRoute
 }
 export interface FileRoutesById {
@@ -202,6 +210,7 @@ export interface FileRoutesById {
   '/_admin/settings': typeof AdminSettingsRoute
   '/_admin/subscriptions': typeof AdminSubscriptionsRoute
   '/_admin/support': typeof AdminSupportRoute
+  '/_admin/testimonials': typeof AdminTestimonialsRoute
   '/_admin/users': typeof AdminUsersRoute
 }
 export interface FileRouteTypes {
@@ -226,6 +235,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/subscriptions'
     | '/support'
+    | '/testimonials'
     | '/users'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -248,6 +258,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/subscriptions'
     | '/support'
+    | '/testimonials'
     | '/users'
   id:
     | '__root__'
@@ -271,6 +282,7 @@ export interface FileRouteTypes {
     | '/_admin/settings'
     | '/_admin/subscriptions'
     | '/_admin/support'
+    | '/_admin/testimonials'
     | '/_admin/users'
   fileRoutesById: FileRoutesById
 }
@@ -316,6 +328,13 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/users'
       preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/testimonials': {
+      id: '/_admin/testimonials'
+      path: '/testimonials'
+      fullPath: '/testimonials'
+      preLoaderRoute: typeof AdminTestimonialsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/_admin/support': {
@@ -450,6 +469,7 @@ interface AdminRouteChildren {
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminSubscriptionsRoute: typeof AdminSubscriptionsRoute
   AdminSupportRoute: typeof AdminSupportRoute
+  AdminTestimonialsRoute: typeof AdminTestimonialsRoute
   AdminUsersRoute: typeof AdminUsersRoute
 }
 
@@ -470,6 +490,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminSettingsRoute: AdminSettingsRoute,
   AdminSubscriptionsRoute: AdminSubscriptionsRoute,
   AdminSupportRoute: AdminSupportRoute,
+  AdminTestimonialsRoute: AdminTestimonialsRoute,
   AdminUsersRoute: AdminUsersRoute,
 }
 

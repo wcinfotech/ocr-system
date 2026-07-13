@@ -40,7 +40,7 @@ const Layout = ({ children }) => {
     <div className="flex flex-col h-full bg-white border-r border-slate-200">
       {/* Brand Logo */}
       <div className="flex items-center gap-3 px-6 h-20 border-b border-slate-100 shrink-0">
-        <img src="/logo.jpg" alt="Escannora Logo" className="h-10 object-contain" />
+        <img src="/logo.png" alt="Escannora Logo" className="h-12 object-contain" />
       </div>
 
       {/* Nav Links */}
@@ -117,7 +117,7 @@ const Layout = ({ children }) => {
         {/* Mobile Header */}
         <header className="lg:hidden h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sticky top-0 z-30">
           <div className="flex items-center gap-2">
-            <img src="/logo.jpg" alt="Escannora Logo" className="h-8 object-contain" />
+            <img src="/logo.png" alt="Escannora Logo" className="h-10 object-contain" />
           </div>
           <button
             onClick={() => setMobileOpen(!mobileOpen)}

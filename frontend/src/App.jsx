@@ -32,9 +32,9 @@ function App() {
     return (
       <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-950">
         <div className="relative flex flex-col items-center space-y-8 animate-fade-in">
-          {/* Pulsing card displaying logo.jpg */}
-          <div className="w-56 h-24 bg-white p-4 rounded-3xl shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
-            <img src="/logo.jpg" alt="Escannora Logo" className="max-h-full max-w-full object-contain" />
+          {/* Pulsing card displaying logo.png */}
+          <div className="w-64 h-28 bg-white p-5 rounded-3xl shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
+            <img src="/logo.png" alt="Escannora Logo" className="max-h-full max-w-full object-contain" />
           </div>
           
           <div className="flex items-center gap-3">

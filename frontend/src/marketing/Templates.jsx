@@ -33,7 +33,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import heroImage from '../assets/image-1.png';
-import { getSubscriptionPlans } from '../services/api';
+import { getSubscriptionPlans, getTestimonials } from '../services/api';
 
 const Twitter = ({ className }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -126,7 +126,7 @@ export const Navbar = () => {
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" onClick={closeDropdowns} className="flex items-center gap-2 group">
-          <img src="/logo.jpg" alt="Escannora Logo" className="h-10 object-contain group-hover:scale-102 transition-transform duration-200" />
+          <img src="/logo.png" alt="Escannora Logo" className="h-12 object-contain group-hover:scale-102 transition-transform duration-200" />
         </Link>
 
         {/* Desktop Nav */}
@@ -436,7 +436,7 @@ export const Footer = () => {
         {/* Brand */}
         <div className="lg:col-span-2 space-y-6 text-left">
           <div className="flex items-center gap-2">
-            <img src="/logo.jpg" alt="Escannora Logo" className="h-9 object-contain" />
+            <img src="/logo.png" alt="Escannora Logo" className="h-11 object-contain opacity-90" style={{ filter: 'brightness(0) invert(1)' }} />
           </div>
           <p className="text-sm text-slate-400 max-w-sm leading-relaxed">
             Escannora is the leading automated document extraction and OCR processing engine. We automate structured data extraction from GST invoices, bills, labels, and purchase orders for high-growth e-commerce sellers and logistics teams.
@@ -749,7 +749,7 @@ export const Timeline = () => {
    TESTIMONIALS COMPONENT
    ========================================================================= */
 export const Testimonials = () => {
-  const reviews = [
+  const [reviews, setReviews] = useState([
     {
       quote: "Escannora cut our invoice manual data entry down to zero. We process over 10,000 marketplace orders daily across Amazon and Shopify, and Escannora extracts all our GST bills perfectly.",
       author: "Rajesh K.",
@@ -765,29 +765,80 @@ export const Testimonials = () => {
       author: "Manoj D.",
       role: "Founder, D2C Apparel",
     },
-  ];
+  ]);
+
+  useEffect(() => {
+    const fetchTestimonials = async () => {
+      try {
+        const response = await getTestimonials();
+        if (response.data && response.data.success && response.data.data.length > 0) {
+          setReviews(response.data.data);
+        }
+      } catch (err) {
+        console.error('Error fetching testimonials:', err);
+      }
+    };
+    fetchTestimonials();
+  }, []);
+
+  // Build marquee items list. Make sure we have at least 8 items for a smooth scroll on wide screens.
+  let marqueeReviews = [...reviews];
+  while (marqueeReviews.length < 8 && reviews.length > 0) {
+    marqueeReviews = [...marqueeReviews, ...reviews];
+  }
+  const duplicatedReviews = [...marqueeReviews, ...marqueeReviews];
+
+  // Duration scales with the number of unique items to keep a consistent scroll speed
+  const baseDuration = 12; // seconds per item set
+  const duration = Math.max(25, marqueeReviews.length * 4.5);
 
   return (
-    <section className="py-24 bg-white">
-      <div className="max-w-7xl mx-auto px-6 text-center space-y-16">
-        <div className="space-y-4 max-w-2xl mx-auto">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-blue-600">User Reviews</h2>
-          <p className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-            Trusted by top eCommerce operators & sellers
-          </p>
-        </div>
+    <section className="py-24 bg-white overflow-hidden relative">
+      {/* Subtle background gradient glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-blue-50/40 rounded-full blur-[100px] pointer-events-none" />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {reviews.map((rev, idx) => (
-            <div key={idx} className="glass-card p-8 bg-slate-50/50 border border-slate-100 text-left rounded-3xl flex flex-col justify-between">
-              <p className="text-xs italic text-slate-500 leading-relaxed mb-6">"{rev.quote}"</p>
-              <div>
-                <h4 className="text-sm font-bold text-slate-800">{rev.author}</h4>
-                <p className="text-[10px] text-slate-400 font-medium">{rev.role}</p>
+      <div className="max-w-7xl mx-auto px-6 text-center space-y-4 relative z-10">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-blue-600">User Reviews</h2>
+        <p className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+          Trusted by top eCommerce operators & sellers
+        </p>
+      </div>
+
+      {/* Infinite scrolling marquee row */}
+      <div className="relative mt-16 flex overflow-x-hidden py-4 z-10">
+        {/* Left and Right fades for premium glass/fade look */}
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-1/12 sm:w-1/6 bg-gradient-to-r from-white via-white/80 to-transparent z-20" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-1/12 sm:w-1/6 bg-gradient-to-l from-white via-white/80 to-transparent z-20" />
+
+        {reviews.length > 0 && (
+          <motion.div
+            className="flex gap-8 pr-8"
+            animate={{ x: ["0%", "-50%"] }}
+            transition={{
+              ease: "linear",
+              duration: duration,
+              repeat: Infinity,
+            }}
+            style={{ display: "flex", width: "max-content" }}
+          >
+            {duplicatedReviews.map((rev, idx) => (
+              <div
+                key={idx}
+                className="w-[340px] sm:w-[380px] shrink-0 glass-card p-8 bg-slate-50/50 border border-slate-100 hover:border-blue-500/20 hover:bg-white text-left rounded-3xl flex flex-col justify-between shadow-sm transition-all duration-300 hover:shadow-md cursor-pointer group"
+              >
+                <p className="text-xs italic text-slate-500 leading-relaxed mb-6 group-hover:text-slate-700 transition-colors">
+                  "{rev.quote}"
+                </p>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
+                    {rev.author}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-medium">{rev.role}</p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </motion.div>
+        )}
       </div>
     </section>
   );

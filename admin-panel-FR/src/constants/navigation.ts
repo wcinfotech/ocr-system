@@ -16,6 +16,7 @@ import AuditIcon from "@mui/icons-material/FactCheckOutlined";
 import SettingsIcon from "@mui/icons-material/SettingsOutlined";
 import ProfileIcon from "@mui/icons-material/PersonOutlineOutlined";
 import ArticleIcon from "@mui/icons-material/ArticleOutlined";
+import RateReviewIcon from "@mui/icons-material/RateReviewOutlined";
 import { PERMISSIONS, type Permission } from "@/permissions/permissions";
 
 export interface NavItem {
@@ -38,6 +39,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Analytics", to: "/analytics", icon: AnalyticsIcon, permission: PERMISSIONS.ANALYTICS_VIEW, section: "Finance" },
   { label: "Support Tickets", to: "/support", icon: SupportIcon, permission: PERMISSIONS.SUPPORT_VIEW, section: "Operations" },
   { label: "Blogs", to: "/blogs", icon: ArticleIcon, section: "Operations" },
+  { label: "Testimonials", to: "/testimonials", icon: RateReviewIcon, section: "Operations" },
   { label: "Notifications", to: "/notifications", icon: NotificationsIcon, permission: PERMISSIONS.NOTIFICATIONS_VIEW, section: "Operations" },
   { label: "Roles", to: "/roles", icon: RolesIcon, permission: PERMISSIONS.ROLES_VIEW, section: "Access Control" },
   { label: "Permissions", to: "/permissions", icon: PermissionsIcon, permission: PERMISSIONS.PERMISSIONS_VIEW, section: "Access Control" },

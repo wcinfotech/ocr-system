@@ -108,6 +108,7 @@ export const downloadInvoice = (invoiceId) => api.get(`/v1/subscription/invoices
 // Public System Settings
 export const getPublicSettings = () => api.get('/v1/auth/public-settings');
 export const getBlogs = () => api.get('/v1/blogs');
+export const getTestimonials = () => api.get('/v1/testimonials');
 export const submitContactMessage = (data) => api.post('/v1/auth/contact', data);
 
 export default api;
