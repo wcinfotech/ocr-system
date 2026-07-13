@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-DiK4U9sA.js";import{t}from"./usePermissions-C-JEZ_Uq.js";var n=e();function r({permission:e,anyOf:r,allOf:i,children:a,fallback:o=null}){let{can:s,canAny:c,canAll:l}=t(),u=!0;return e&&(u=s(e)),u&&r&&(u=c(r)),u&&i&&(u=l(i)),(0,n.jsx)(n.Fragment,{children:u?a:o})}export{r as t};

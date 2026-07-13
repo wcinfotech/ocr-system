@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-DiK4U9sA.js";import{t}from"./ModulePlaceholder-D6sSNTpS.js";import{t as n}from"./NotificationsNoneOutlined-B1waQ3HQ.js";var r=e(),i=()=>(0,r.jsx)(t,{title:`Notifications`,subtitle:`Send announcements and reminders, view history.`,icon:n});export{i as component};

@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-DiK4U9sA.js";import{f as t}from"./Box-Qhv4i6f8.js";var n=t((0,e().jsx)(`path`,{d:`M18 15v3H6v-3H4v3c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-3zm-1-4-1.41-1.41L13 12.17V4h-2v8.17L8.41 9.59 7 11l5 5z`}),`FileDownloadOutlined`);export{n as t};

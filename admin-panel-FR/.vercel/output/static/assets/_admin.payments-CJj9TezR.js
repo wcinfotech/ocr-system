@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-DiK4U9sA.js";import{t}from"./ModulePlaceholder-D6sSNTpS.js";import{t as n}from"./CreditCardOutlined-BKvPtLrU.js";var r=e(),i=()=>(0,r.jsx)(t,{title:`Payments`,subtitle:`Payment history, transactions, invoices and refunds.`,icon:n});export{i as component};

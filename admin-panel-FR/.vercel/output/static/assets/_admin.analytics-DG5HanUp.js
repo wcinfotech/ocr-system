@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-DiK4U9sA.js";import{t}from"./InsightsOutlined-_VZvDvxT.js";import{t as n}from"./ModulePlaceholder-D6sSNTpS.js";var r=e(),i=()=>(0,r.jsx)(n,{title:`Analytics`,subtitle:`Users, revenue, bills, OCR, subscriptions and growth.`,icon:t});export{i as component};

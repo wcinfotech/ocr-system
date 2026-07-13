@@ -1,0 +1,1 @@
+import{B as e,V as t}from"./Box-Qhv4i6f8.js";function n(e){return t(`MuiDivider`,e)}var r=e(`MuiDivider`,[`root`,`absolute`,`fullWidth`,`inset`,`middle`,`flexItem`,`vertical`,`withChildren`,`textAlignRight`,`textAlignLeft`,`wrapper`,`wrapperVertical`]);export{n,r as t};
