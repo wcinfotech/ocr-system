@@ -24,6 +24,7 @@ import { Route as AdminPermissionsRouteImport } from './routes/_admin.permission
 import { Route as AdminPaymentsRouteImport } from './routes/_admin.payments'
 import { Route as AdminNotificationsRouteImport } from './routes/_admin.notifications'
 import { Route as AdminDashboardRouteImport } from './routes/_admin.dashboard'
+import { Route as AdminBlogsRouteImport } from './routes/_admin.blogs'
 import { Route as AdminBillsRouteImport } from './routes/_admin.bills'
 import { Route as AdminAuditLogsRouteImport } from './routes/_admin.audit-logs'
 import { Route as AdminAnalyticsRouteImport } from './routes/_admin.analytics'
@@ -104,6 +105,11 @@ const AdminDashboardRoute = AdminDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminBlogsRoute = AdminBlogsRouteImport.update({
+  id: '/blogs',
+  path: '/blogs',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminBillsRoute = AdminBillsRouteImport.update({
   id: '/bills',
   path: '/bills',
@@ -139,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/analytics': typeof AdminAnalyticsRoute
   '/audit-logs': typeof AdminAuditLogsRoute
   '/bills': typeof AdminBillsRoute
+  '/blogs': typeof AdminBlogsRoute
   '/dashboard': typeof AdminDashboardRoute
   '/notifications': typeof AdminNotificationsRoute
   '/payments': typeof AdminPaymentsRoute
@@ -160,6 +167,7 @@ export interface FileRoutesByTo {
   '/analytics': typeof AdminAnalyticsRoute
   '/audit-logs': typeof AdminAuditLogsRoute
   '/bills': typeof AdminBillsRoute
+  '/blogs': typeof AdminBlogsRoute
   '/dashboard': typeof AdminDashboardRoute
   '/notifications': typeof AdminNotificationsRoute
   '/payments': typeof AdminPaymentsRoute
@@ -183,6 +191,7 @@ export interface FileRoutesById {
   '/_admin/analytics': typeof AdminAnalyticsRoute
   '/_admin/audit-logs': typeof AdminAuditLogsRoute
   '/_admin/bills': typeof AdminBillsRoute
+  '/_admin/blogs': typeof AdminBlogsRoute
   '/_admin/dashboard': typeof AdminDashboardRoute
   '/_admin/notifications': typeof AdminNotificationsRoute
   '/_admin/payments': typeof AdminPaymentsRoute
@@ -206,6 +215,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/audit-logs'
     | '/bills'
+    | '/blogs'
     | '/dashboard'
     | '/notifications'
     | '/payments'
@@ -227,6 +237,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/audit-logs'
     | '/bills'
+    | '/blogs'
     | '/dashboard'
     | '/notifications'
     | '/payments'
@@ -249,6 +260,7 @@ export interface FileRouteTypes {
     | '/_admin/analytics'
     | '/_admin/audit-logs'
     | '/_admin/bills'
+    | '/_admin/blogs'
     | '/_admin/dashboard'
     | '/_admin/notifications'
     | '/_admin/payments'
@@ -376,6 +388,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminDashboardRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/_admin/blogs': {
+      id: '/_admin/blogs'
+      path: '/blogs'
+      fullPath: '/blogs'
+      preLoaderRoute: typeof AdminBlogsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/_admin/bills': {
       id: '/_admin/bills'
       path: '/bills'
@@ -420,6 +439,7 @@ interface AdminRouteChildren {
   AdminAnalyticsRoute: typeof AdminAnalyticsRoute
   AdminAuditLogsRoute: typeof AdminAuditLogsRoute
   AdminBillsRoute: typeof AdminBillsRoute
+  AdminBlogsRoute: typeof AdminBlogsRoute
   AdminDashboardRoute: typeof AdminDashboardRoute
   AdminNotificationsRoute: typeof AdminNotificationsRoute
   AdminPaymentsRoute: typeof AdminPaymentsRoute
@@ -439,6 +459,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAnalyticsRoute: AdminAnalyticsRoute,
   AdminAuditLogsRoute: AdminAuditLogsRoute,
   AdminBillsRoute: AdminBillsRoute,
+  AdminBlogsRoute: AdminBlogsRoute,
   AdminDashboardRoute: AdminDashboardRoute,
   AdminNotificationsRoute: AdminNotificationsRoute,
   AdminPaymentsRoute: AdminPaymentsRoute,

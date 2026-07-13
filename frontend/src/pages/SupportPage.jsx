@@ -51,7 +51,7 @@ const SupportPage = () => {
       a: 'Zip archives must contain only supported image formats (JPG, PNG, WEBP, TIFF) or PDF files. Ensure that the total zip archive size is under 50MB and that the zip file is not password-protected.',
     },
     {
-      q: 'Can I integrate BillScan Pro with my existing ERP?',
+      q: 'Can I integrate Escannora with my existing ERP?',
       a: 'Yes, Enterprise plan users have access to our REST API and outbound webhooks. You can set up endpoints to receive parsed JSON payloads instantly whenever a document status transitions to "completed".',
     },
     {
@@ -142,11 +142,11 @@ const SupportPage = () => {
               {[
                 {
                   title: 'Email Support',
-                  desc: 'support@billscanpro.com',
+                  desc: 'support@escannora.com',
                   icon: HiOutlineMail,
                   color: 'text-indigo-600',
                   bg: 'bg-indigo-50',
-                  action: () => window.open('mailto:support@billscanpro.com'),
+                  action: () => window.open('mailto:support@escannora.com'),
                 },
                 {
                   title: 'API Reference',

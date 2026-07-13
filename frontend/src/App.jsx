@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
@@ -13,8 +14,38 @@ import RegisterPage from './pages/RegisterPage';
 import SubscriptionPage from './pages/SubscriptionPage';
 import SupportPage from './pages/SupportPage';
 import ProfilePage from './pages/ProfilePage';
+import Home from './marketing/Home';
+import { AboutUs, PricingPage, FeaturesPage, ContactUs, BlogPage, BookDemo, FreeTrial } from './marketing/Pages';
+import SitemapPage from './marketing/SitemapPage';
 
 function App() {
+  const [appLoading, setAppLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAppLoading(false);
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (appLoading) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-950">
+        <div className="relative flex flex-col items-center space-y-8 animate-fade-in">
+          {/* Pulsing card displaying logo.jpg */}
+          <div className="w-56 h-24 bg-white p-4 rounded-3xl shadow-2xl flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
+            <img src="/logo.jpg" alt="Escannora Logo" className="max-h-full max-w-full object-contain" />
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Initializing Escannora</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <AuthProvider>
       <Router>
@@ -34,28 +65,47 @@ function App() {
           }}
         />
         <Routes>
+          {/* Public Marketing Routes */}
+          <Route path="/" element={<Home />} />
+          <Route path="/about-us" element={<AboutUs />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/features" element={<FeaturesPage />} />
+          <Route path="/contact-us" element={<ContactUs />} />
+          <Route path="/blog" element={<BlogPage />} />
+          <Route path="/book-demo" element={<BookDemo />} />
+          <Route path="/free-trial" element={<FreeTrial />} />
+
+          {/* Public Auth Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+
+          {/* Protected Customer Dashboard App Routes */}
           <Route
-            path="/*"
+            path="/app/*"
             element={
               <ProtectedRoute>
                 <Layout>
                   <Routes>
-                    <Route path="/" element={<UploadPage />} />
-                    <Route path="/dashboard" element={<DashboardPage />} />
-                    <Route path="/history" element={<BillHistoryPage />} />
-                    <Route path="/analytics" element={<AnalyticsPage />} />
-                    <Route path="/subscription" element={<SubscriptionPage />} />
-                    <Route path="/support" element={<SupportPage />} />
-                    <Route path="/profile" element={<ProfilePage />} />
-                    <Route path="/bill/:id" element={<BillDetailPage />} />
-                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="dashboard" element={<DashboardPage />} />
+                    <Route path="upload" element={<UploadPage />} />
+                    <Route path="history" element={<BillHistoryPage />} />
+                    <Route path="analytics" element={<AnalyticsPage />} />
+                    <Route path="subscription" element={<SubscriptionPage />} />
+                    <Route path="support" element={<SupportPage />} />
+                    <Route path="profile" element={<ProfilePage />} />
+                    <Route path="bill/:id" element={<BillDetailPage />} />
+                    <Route path="*" element={<Navigate to="dashboard" replace />} />
                   </Routes>
                 </Layout>
               </ProtectedRoute>
             }
           />
+
+          {/* Dynamic Sitemap Pages */}
+          <Route path="/:slug" element={<SitemapPage />} />
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
     </AuthProvider>

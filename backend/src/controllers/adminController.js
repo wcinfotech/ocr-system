@@ -1505,20 +1505,36 @@ const refundPayment = async (req, res) => {
 const getSettings = async (req, res) => {
   try {
     let settings = await Setting.findOne({ key: 'system_settings' });
+    const defaults = {
+      maintenanceMode: false,
+      maxStorageLimitMb: 10240,
+      allowedUploadTypes: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+      emailNotifications: true,
+      supportEmail: 'support@escannora.com',
+      contactPhone: '+1 (800) 555-0199',
+      contactAddress: '100 Pine Street, San Francisco, CA 94111',
+      ocrRetryLimit: 3,
+      activityLogRetention: false,
+      activityLogSavePayload: false,
+    };
+
     if (!settings) {
       settings = await Setting.create({
         key: 'system_settings',
-        value: {
-          maintenanceMode: false,
-          maxStorageLimitMb: 10240,
-          allowedUploadTypes: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
-          emailNotifications: true,
-          supportEmail: 'contact.kitchenbazaar@gmail.com',
-          ocrRetryLimit: 3,
-          activityLogRetention: false,
-          activityLogSavePayload: false,
-        },
+        value: defaults,
       });
+    } else {
+      let updated = false;
+      for (const k of Object.keys(defaults)) {
+        if (settings.value[k] === undefined) {
+          settings.value[k] = defaults[k];
+          updated = true;
+        }
+      }
+      if (updated) {
+        settings.markModified('value');
+        await settings.save();
+      }
     }
 
     res.json(settings.value);

@@ -105,4 +105,8 @@ export const buySubscription = (data) => api.post('/v1/subscription/buy', data);
 export const getInvoices = () => api.get('/v1/subscription/invoices');
 export const downloadInvoice = (invoiceId) => api.get(`/v1/subscription/invoices/${invoiceId}/download`, { responseType: 'blob' });
 
+// Public System Settings
+export const getPublicSettings = () => api.get('/v1/auth/public-settings');
+export const getBlogs = () => api.get('/v1/blogs');
+
 export default api;

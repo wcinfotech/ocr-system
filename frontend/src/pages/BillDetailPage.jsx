@@ -58,7 +58,7 @@ const BillDetailPage = () => {
       }
     } catch (err) {
       toast.error('Bill not found');
-      navigate('/dashboard');
+      navigate('/app/dashboard');
     } finally {
       if (!silent) setLoading(false);
     }
@@ -115,7 +115,7 @@ const BillDetailPage = () => {
     try {
       await deleteBill(id);
       toast.success('Bill deleted successfully');
-      navigate('/dashboard');
+      navigate('/app/dashboard');
     } catch {
       toast.error('Failed to delete bill');
     }
@@ -216,7 +216,7 @@ const BillDetailPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div className="flex items-center gap-3">
           <Link
-            to="/dashboard"
+            to="/app/dashboard"
             className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm"
           >
             <HiOutlineArrowLeft className="w-5 h-5" />

@@ -9,7 +9,7 @@ const RegisterPage = () => {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      navigate('/dashboard');
+      navigate('/app/dashboard');
     }
   }, [isAuthenticated, authLoading, navigate]);
 
@@ -38,7 +38,7 @@ const RegisterPage = () => {
     try {
       const success = await register(name, email, password);
       if (success) {
-        navigate('/dashboard');
+        navigate('/app/dashboard');
       }
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');

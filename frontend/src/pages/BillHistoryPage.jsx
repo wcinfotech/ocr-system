@@ -331,7 +331,7 @@ const BillHistoryPage = () => {
           <HiOutlineDocumentText className="w-16 h-16 text-slate-300 mx-auto mb-4" />
           <p className="text-slate-700 text-lg font-semibold">No bills found</p>
           <p className="text-slate-400 text-sm mt-1">Try modifying your search or upload new bills</p>
-          <Link to="/" className="btn-primary inline-block mt-6">
+          <Link to="/app/upload" className="btn-primary inline-block mt-6">
             Upload Bill
           </Link>
         </div>
@@ -414,7 +414,7 @@ const BillHistoryPage = () => {
                           </a>
                         )}
                         <Link
-                          to={`/bill/${bill._id}`}
+                          to={`/app/bill/${bill._id}`}
                           className="p-2 rounded-lg hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 transition-colors"
                           title="View Details"
                         >

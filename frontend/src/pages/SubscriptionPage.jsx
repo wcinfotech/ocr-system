@@ -223,7 +223,7 @@ const SubscriptionPage = () => {
     },
     {
       q: 'Are my scanned invoices secure?',
-      a: 'Absolutely. We store your uploaded invoice data and documents with enterprise-grade encryption. We strictly comply with GDPR, and your invoice files are never shared with outside parties or used for AI training without permission.',
+      a: 'Absolutely. We store your uploaded invoice data and documents with enterprise-grade encryption. We strictly comply with GDPR, and your invoice files are never shared with outside parties or used for system training without permission.',
     },
     {
       q: 'Can I cancel my subscription at any time?',
@@ -265,7 +265,7 @@ const SubscriptionPage = () => {
           Subscription & Plans
         </h2>
         <p className="text-slate-500 text-sm max-w-xl mx-auto">
-          Scale your invoice processing workflow with powerful AI OCR scanning features, custom parsing pipelines, and priority support.
+          Scale your invoice processing workflow with powerful OCR scanning features, custom parsing pipelines, and priority support.
         </p>
 
         {/* Toggle Monthly/Yearly */}

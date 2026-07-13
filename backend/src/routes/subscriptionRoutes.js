@@ -10,7 +10,7 @@ const router = express.Router();
 const { buySubscription, getMyInvoices, downloadInvoice, getActivePlans } = require('../controllers/subscriptionController');
 const { protect } = require('../middleware/auth');
 
-router.get('/plans', protect, getActivePlans);
+router.get('/plans', getActivePlans);
 router.post('/buy', protect, buySubscription);
 router.get('/invoices', protect, getMyInvoices);
 router.get('/invoices/:invoiceId/download', protect, downloadInvoice);

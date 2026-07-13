@@ -123,7 +123,7 @@ const DashboardPage = () => {
   const handleQuickFileChange = (e) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      navigate('/', { state: { preloadedFiles: Array.from(files) } });
+      navigate('/app/upload', { state: { preloadedFiles: Array.from(files) } });
     }
   };
 
@@ -385,7 +385,7 @@ const DashboardPage = () => {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-slate-800">Recent Bills</h3>
             <Link
-              to="/history"
+              to="/app/history"
               className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors"
             >
               View all history
@@ -398,7 +398,7 @@ const DashboardPage = () => {
               <div className="p-12 text-center">
                 <HiOutlineDocumentText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                 <p className="text-slate-600 text-sm font-semibold">No bills uploaded yet</p>
-                <Link to="/" className="text-xs text-indigo-600 hover:underline mt-1 inline-block">
+                <Link to="/app/upload" className="text-xs text-indigo-600 hover:underline mt-1 inline-block">
                   Upload your first bill
                 </Link>
               </div>
@@ -450,7 +450,7 @@ const DashboardPage = () => {
                         </span>
                       </div>
                       <Link
-                        to={`/bill/${bill._id}`}
+                        to={`/app/bill/${bill._id}`}
                         className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
                         title="View Details"
                       >

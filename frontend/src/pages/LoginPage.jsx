@@ -11,7 +11,7 @@ const LoginPage = () => {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      navigate('/dashboard');
+      navigate('/app/dashboard');
     }
   }, [isAuthenticated, authLoading, navigate]);
 
@@ -63,7 +63,7 @@ const LoginPage = () => {
     try {
       const success = await login(email, password);
       if (success) {
-        navigate('/dashboard');
+        navigate('/app/dashboard');
       }
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.');

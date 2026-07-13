@@ -93,7 +93,7 @@ const UploadPage = () => {
         setUploadComplete(true);
         setBatchResult(response.data.data);
         toast.success(`${files.length} file(s) uploaded! Processing started.`);
-        setTimeout(() => navigate('/dashboard'), 2000);
+        setTimeout(() => navigate('/app/dashboard'), 2000);
       }
     } catch (error) {
       toast.error(error.response?.data?.error || 'Upload failed. Please try again.');

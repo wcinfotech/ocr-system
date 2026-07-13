@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Core Pages -->
+  <url>
+    <loc>https://escannora.com/</loc>
+    <priority>1.0</priority>
+    <changefreq>daily</changefreq>
+  </url>
+  <url>
+    <loc>https://escannora.com/about-us</loc>
+    <priority>0.8</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
+    <loc>https://escannora.com/features</loc>
+    <priority>0.8</priority>
+    <changefreq>weekly</changefreq>
+  </url>
+  <url>
+    <loc>https://escannora.com/pricing</loc>
+    <priority>0.9</priority>
+    <changefreq>weekly</changefreq>
+  </url>
+  <url>
+    <loc>https://escannora.com/contact-us</loc>
+    <priority>0.6</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
+    <loc>https://escannora.com/blog</loc>
+    <priority>0.7</priority>
+    <changefreq>weekly</changefreq>
+  </url>
+  <url>
+    <loc>https://escannora.com/book-demo</loc>
+    <priority>0.7</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
+    <loc>https://escannora.com/free-trial</loc>
+    <priority>0.9</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+
+  <!-- Marketplace Slugs -->
+  <url><loc>https://escannora.com/amazon-seller-management-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/meesho-seller-management-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/flipkart-seller-management-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/shopify-order-management-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/woocommerce-order-management-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/magento-order-management-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/ajio-seller-management-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/myntra-seller-management-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/glowroad-seller-management-software</loc><priority>0.6</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/jiomart-seller-management-software</loc><priority>0.6</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/custom-website-order-management-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+
+  <!-- Feature Slugs -->
+  <url><loc>https://escannora.com/barcode-scanning-software</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/barcode-verification-software</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/order-management-software</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/invoice-printing-software</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/packing-verification-software</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/shipping-verification-software</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/warehouse-order-management-software</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/reports-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/analytics-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/cloud-dashboard-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/awb-verification-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/dispatch-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/product-verification-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+
+  <!-- Industry Slugs -->
+  <url><loc>https://escannora.com/fashion-order-management-software</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/electronics-order-management-software</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/grocery-order-management-software</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/beauty-order-management-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/clothing-order-management-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/manufacturers-order-management-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/wholesalers-order-management-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/d2c-order-management-software</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/jewellery-order-management-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://escannora.com/footwear-order-management-software</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+
+  <!-- Legal Policies -->
+  <url><loc>https://escannora.com/privacy-policy</loc><priority>0.4</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://escannora.com/terms-and-conditions</loc><priority>0.4</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://escannora.com/cookie-policy</loc><priority>0.4</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://escannora.com/help-center</loc><priority>0.6</priority><changefreq>weekly</changefreq></url>
+</urlset>

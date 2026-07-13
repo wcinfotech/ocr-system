@@ -40,24 +40,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         flexDirection: "column",
       }}
     >
-      <Box sx={{ px: 3, py: 2.5, display: "flex", alignItems: "center", gap: 1.5 }}>
-        <Box
-          sx={{
-            width: 34,
-            height: 34,
-            borderRadius: 2,
-            display: "grid",
-            placeItems: "center",
-            color: "#fff",
-            fontWeight: 800,
-            background: `linear-gradient(135deg, ${colors.primary}, ${colors.primaryHover})`,
-          }}
-        >
-          A
-        </Box>
-        <Typography variant="h5" noWrap sx={{ fontWeight: 800 }}>
-          {env.APP_NAME}
-        </Typography>
+      <Box sx={{ px: 3, py: 2.5, display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+        <img src="/logo.jpg" alt="Escannora Logo" style={{ height: 36, objectFit: "contain" }} />
       </Box>
       <Divider />
 

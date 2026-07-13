@@ -17,6 +17,7 @@ const authRoutes = require('./src/routes/authRoutes');
 const ticketRoutes = require('./src/routes/ticketRoutes');
 const subscriptionRoutes = require('./src/routes/subscriptionRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
+const blogRoutes = require('./src/routes/blogRoutes');
 const { errorHandler, notFound } = require('./src/middleware/errorHandler');
 const { startCleanupScheduler } = require('./src/services/cleanupService');
 const activityLogger = require('./src/middleware/activityLogger');
@@ -67,6 +68,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/tickets', ticketRoutes);
 app.use('/api/v1/subscription', subscriptionRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/blogs', blogRoutes);
 app.use('/api', billRoutes);
 
 // Health check endpoint

@@ -73,6 +73,43 @@ async function seed() {
       console.log('ℹ️ Subscription plans already exist in database.');
     }
 
+    // 3. Seed Default Blogs if none exist
+    const Blog = require('./src/models/Blog');
+    const blogCount = await Blog.countDocuments();
+    if (blogCount === 0) {
+      console.log('Seeding default blogs...');
+      const defaultBlogs = [
+        {
+          title: 'How Layout parsing is replacing manual invoice keying',
+          excerpt: 'Discover how modern structured parsing algorithms read document layouts, extract tables, and map cells automatically.',
+          category: 'Document Automation',
+          content: '<p>Manual keying of invoice fields is slow and prone to errors. With layout-aware document structure extraction, OCR systems can extract GST breakdowns, vendor details, and item lists in milliseconds...</p>',
+          author: 'Escannora Team',
+          isPublished: true,
+        },
+        {
+          title: '5 Best practices for warehouse dispatch barcode verification',
+          excerpt: 'Learn how to construct error-proof shipping checkpoints using 1D/2D scanning and automate order verification workflows.',
+          category: 'Logistics Operations',
+          content: '<p>Integrating barcode verifiers into your packing stations significantly reduces return rates. Always cross-match label SKUs against order databases in real-time...</p>',
+          author: 'Escannora Team',
+          isPublished: true,
+        },
+        {
+          title: 'Optimizing GST billing extraction for Indian eCommerce marketplaces',
+          excerpt: 'A comprehensive guide to automated parser matching of tax, CGST, SGST, IGST totals from Amazon and Flipkart seller bills.',
+          category: 'Taxes & Compliance',
+          content: '<p>E-commerce sellers in India handle high volumes of tax invoices. Automatic extraction of CGST, SGST, and IGST components simplifies compliance and monthly ledger matching...</p>',
+          author: 'Escannora Team',
+          isPublished: true,
+        }
+      ];
+      await Blog.insertMany(defaultBlogs);
+      console.log('✅ Default blogs seeded!');
+    } else {
+      console.log('ℹ️ Blogs already exist in database.');
+    }
+
   } catch (error) {
     console.error('❌ Seeding error:', error.message);
   } finally {
