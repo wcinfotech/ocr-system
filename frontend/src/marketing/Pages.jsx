@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getPublicSettings, getBlogs } from '../services/api';
+import { getPublicSettings, getBlogs, submitContactMessage } from '../services/api';
 import {
   Navbar,
   Footer,
@@ -217,20 +217,34 @@ export const ContactUs = () => {
     fetchContactDetails();
   }, []);
 
-  const handleSend = (e) => {
+  const handleSend = async (e) => {
     e.preventDefault();
     if (!name || !email || !msg) {
       toast.error('Please fill in all fields');
       return;
     }
     setSending(true);
-    setTimeout(() => {
-      toast.success('Your message has been sent! Our support team will write back shortly.');
-      setName('');
-      setEmail('');
-      setMsg('');
+    try {
+      const { data } = await submitContactMessage({
+        name,
+        email,
+        message: msg,
+      });
+      if (data.success) {
+        toast.success(data.message || 'Your message has been sent! Our support team will write back shortly.');
+        setName('');
+        setEmail('');
+        setMsg('');
+      } else {
+        toast.error(data.message || 'Failed to send message. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error submitting contact form:', error);
+      const errMsg = error.response?.data?.message || 'Failed to send message. Please check your connection and try again.';
+      toast.error(errMsg);
+    } finally {
       setSending(false);
-    }, 1200);
+    }
   };
 
   return (

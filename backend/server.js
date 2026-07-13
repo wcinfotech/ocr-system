@@ -64,14 +64,8 @@ app.use(activityLogger);
 // ============================================
 // API Routes
 // ============================================
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/tickets', ticketRoutes);
-app.use('/api/v1/subscription', subscriptionRoutes);
-app.use('/api/v1/admin', adminRoutes);
-app.use('/api/v1/blogs', blogRoutes);
-app.use('/api', billRoutes);
 
-// Health check endpoint
+// Health check endpoint (defined before route middlewares to avoid auth interception)
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
@@ -79,6 +73,13 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/tickets', ticketRoutes);
+app.use('/api/v1/subscription', subscriptionRoutes);
+app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/blogs', blogRoutes);
+app.use('/api', billRoutes);
 
 // ============================================
 // Error Handling

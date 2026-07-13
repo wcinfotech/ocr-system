@@ -46,4 +46,61 @@ router.get('/public-settings', async (req, res) => {
   }
 });
 
+router.post('/contact', async (req, res) => {
+  try {
+    const { name, email, message } = req.body;
+
+    if (!name || !email || !message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide name, email, and message',
+      });
+    }
+
+    // Generate random friendly Ticket ID: TKT-XXXX
+    const ticketId = `TKT-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const Ticket = require('../models/Ticket');
+    const ticket = await Ticket.create({
+      ticketId,
+      guestName: name,
+      guestEmail: email,
+      subject: `Contact Inquiry: ${message.substring(0, 40)}${message.length > 40 ? '...' : ''}`,
+      category: 'General',
+      priority: 'medium',
+      message: message,
+    });
+
+    // Send confirmation email asynchronously (so it doesn't block the request)
+    try {
+      const { sendTicketConfirmationEmail } = require('../services/emailService');
+      sendTicketConfirmationEmail(email, name, {
+        id: ticketId,
+        subject: ticket.subject,
+        category: 'General',
+        priority: 'medium',
+        message: message,
+      }).catch((err) => {
+        console.error(`Contact confirmation email send error: ${err.message}`);
+      });
+    } catch (err) {
+      console.error(`Failed to load email service: ${err.message}`);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Your message has been submitted. Our support team will contact you shortly.',
+      data: {
+        ticketId: ticket.ticketId,
+      }
+    });
+  } catch (error) {
+    console.error(`Contact message creation error: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Server error. Please try again later.',
+    });
+  }
+});
+
 module.exports = router;

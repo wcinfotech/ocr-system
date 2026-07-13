@@ -1303,8 +1303,8 @@ const getTickets = async (req, res) => {
       id: t._id.toString(),
       ticketId: t.ticketId,
       userId: t.user?._id?.toString() || '',
-      userName: t.user?.name || 'Guest User',
-      userEmail: t.user?.email || '',
+      userName: t.user?.name || t.guestName || 'Guest User',
+      userEmail: t.user?.email || t.guestEmail || '',
       subject: t.subject,
       category: t.category,
       priority: t.priority,
@@ -1341,8 +1341,8 @@ const getTicketDetail = async (req, res) => {
       id: t._id.toString(),
       ticketId: t.ticketId,
       userId: t.user?._id?.toString() || '',
-      userName: t.user?.name || 'Guest User',
-      userEmail: t.user?.email || '',
+      userName: t.user?.name || t.guestName || 'Guest User',
+      userEmail: t.user?.email || t.guestEmail || '',
       subject: t.subject,
       category: t.category,
       priority: t.priority,
@@ -1385,9 +1385,11 @@ const replyTicket = async (req, res) => {
     await ticket.save();
 
     // Send email alert asynchronously to the customer
-    if (ticket.user && ticket.user.email) {
+    const recipientEmail = ticket.user?.email || ticket.guestEmail;
+    const recipientName = ticket.user?.name || ticket.guestName;
+    if (recipientEmail) {
       const { sendTicketReplyEmail } = require('../services/emailService');
-      sendTicketReplyEmail(ticket.user.email, ticket.user.name, {
+      sendTicketReplyEmail(recipientEmail, recipientName, {
         id: ticket.ticketId,
         subject: ticket.subject,
         status: ticket.status,
