@@ -5,7 +5,7 @@
   },
   "deploy": {
     "startCommand": "node server.js",
-    "port": 5041,
+    "port": 5091,
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",
