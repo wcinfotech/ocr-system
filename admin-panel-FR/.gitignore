@@ -34,5 +34,4 @@ dist-ssr
 *.zip
 .txt
 .rar
-.env.production
 
