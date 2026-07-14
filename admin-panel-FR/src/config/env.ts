@@ -10,9 +10,14 @@
 const bool = (v: string | undefined, fallback = false) =>
   v === undefined ? fallback : v === "true" || v === "1";
 
+let apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "";
+if (apiBaseUrl && !apiBaseUrl.startsWith("http://") && !apiBaseUrl.startsWith("https://")) {
+  apiBaseUrl = `https://${apiBaseUrl}`;
+}
+
 export const env = {
   /** Base URL for the external backend. Example: https://api.yourcompany.com */
-  API_BASE_URL: import.meta.env.VITE_API_BASE_URL ?? "",
+  API_BASE_URL: apiBaseUrl,
   /** Request timeout in ms. */
   API_TIMEOUT: Number(import.meta.env.VITE_API_TIMEOUT ?? 30000),
   /**
