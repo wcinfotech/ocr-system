@@ -8,6 +8,7 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const { sendWelcomeEmail, sendOtpEmail } = require('../services/emailService');
+const { logEvent } = require('../services/firebaseService');
 
 // Helper to generate JWT Token
 const generateToken = (id) => {
@@ -55,6 +56,13 @@ const registerUser = async (req, res, next) => {
 
     // Generate token
     const token = generateToken(user._id);
+
+    // Log registration event to Firebase
+    logEvent('user_register', {
+      userId: user._id.toString(),
+      userName: user.name,
+      userEmail: user.email,
+    }).catch(err => console.error('Register logEvent error:', err));
 
     res.status(201).json({
       success: true,
@@ -110,6 +118,13 @@ const loginUser = async (req, res, next) => {
 
     // Generate token
     const token = generateToken(user._id);
+
+    // Log login event to Firebase
+    logEvent('user_login', {
+      userId: user._id.toString(),
+      userName: user.name,
+      userEmail: user.email,
+    }).catch(err => console.error('Login logEvent error:', err));
 
     res.json({
       success: true,
@@ -193,6 +208,14 @@ const updateProfile = async (req, res, next) => {
     }
 
     await user.save();
+
+    // Log profile update event to Firebase
+    logEvent('user_update_profile', {
+      userId: user._id.toString(),
+      userName: user.name,
+      userEmail: user.email,
+      updatedFields: Object.keys(req.body).filter(k => k !== 'password'),
+    }).catch(err => console.error('Profile update logEvent error:', err));
 
     res.json({
       success: true,

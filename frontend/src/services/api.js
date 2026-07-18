@@ -5,6 +5,8 @@
  */
 
 import axios from 'axios';
+import { logEvent as firebaseLogEvent } from 'firebase/analytics';
+import { analytics } from '../config/firebase';
 
 let apiURL = import.meta.env.VITE_API_URL || '';
 if (apiURL && !apiURL.startsWith('http://') && !apiURL.startsWith('https://')) {
@@ -110,5 +112,23 @@ export const getPublicSettings = () => api.get('/v1/auth/public-settings');
 export const getBlogs = () => api.get('/v1/blogs');
 export const getTestimonials = () => api.get('/v1/testimonials');
 export const submitContactMessage = (data) => api.post('/v1/auth/contact', data);
+
+// Analytics event logging helpers (Firebase connection)
+export const logAnalyticsEvent = (name, params = {}) => {
+  // 1. Log to Firebase JS SDK Client Analytics (GA4)
+  if (analytics) {
+    try {
+      firebaseLogEvent(analytics, name, params);
+    } catch (err) {
+      console.error('Failed to log client event to Firebase JS SDK:', err);
+    }
+  }
+
+  // 2. Log to backend proxy (Firestore)
+  return api.post('/v1/analytics/log', { name, params })
+    .catch(err => console.error('Failed to log client-side analytics event:', err));
+};
+
+export const getAnalyticsStats = () => api.get('/v1/analytics/stats');
 
 export default api;

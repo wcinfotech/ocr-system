@@ -11,6 +11,7 @@ const Plan = require('../models/Plan');
 const Subscription = require('../models/Subscription');
 const { sendSubscriptionInvoiceEmail } = require('../services/emailService');
 const { generateInvoicePDF } = require('../services/pdfService');
+const { logEvent } = require('../services/firebaseService');
 
 /**
  * @desc    Buy / Upgrade a subscription
@@ -103,6 +104,15 @@ const buySubscription = async (req, res) => {
       console.error(`Subscription email send error: ${err.message}`);
     });
 
+    logEvent('subscription_purchase', {
+      userId: user._id.toString(),
+      userName: user.name,
+      plan: plan,
+      billingPeriod: validBillingPeriod,
+      price: price,
+      invoiceId: invoiceId,
+    }).catch(err => console.error('Subscription logEvent error:', err));
+
     res.json({
       success: true,
       message: `Successfully subscribed to ${plan} plan!`,
@@ -187,6 +197,12 @@ const downloadInvoice = async (req, res) => {
       billingPeriod: invoice.billingPeriod === 'Yearly' ? 'Yearly Billing' : 'Monthly Billing',
       price: invoice.amount,
     });
+
+    logEvent('subscription_invoice_download', {
+      userId: user._id.toString(),
+      invoiceId: invoice.invoiceId,
+      planName: invoice.plan,
+    }).catch(err => console.error('Download invoice logEvent error:', err));
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=invoice-${invoice.invoiceId}.pdf`);

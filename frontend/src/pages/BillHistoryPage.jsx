@@ -15,7 +15,7 @@ import {
   HiOutlineExternalLink,
   HiOutlineReceiptRefund,
 } from 'react-icons/hi';
-import { getBills, deleteBill, exportBills } from '../services/api';
+import { getBills, deleteBill, exportBills, logAnalyticsEvent } from '../services/api';
 
 const PLATFORMS = [
   { value: '', label: 'All Platforms' },
@@ -92,6 +92,7 @@ const BillHistoryPage = () => {
     try {
       await deleteBill(deletingId);
       toast.success('Bill deleted successfully');
+      logAnalyticsEvent('document_delete_success', { billId: deletingId });
       fetchBills(pagination.page);
     } catch (error) {
       toast.error('Failed to delete bill');
@@ -109,6 +110,13 @@ const BillHistoryPage = () => {
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
       params.format = 'csv';
+
+      logAnalyticsEvent('document_export_csv', {
+        platform: platform || 'all',
+        billType: billType || 'all',
+        hasStartDate: !!startDate,
+        hasEndDate: !!endDate
+      });
 
       const response = await exportBills(params);
       const url = window.URL.createObjectURL(new Blob([response.data]));

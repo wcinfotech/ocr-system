@@ -17,6 +17,7 @@
   "dependencies": {
     "@vitejs/plugin-react": "^6.0.2",
     "axios": "^1.16.1",
+    "firebase": "^12.16.0",
     "framer-motion": "^12.42.2",
     "lucide-react": "^1.24.0",
     "react-dropzone": "^15.0.0",

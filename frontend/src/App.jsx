@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
+import { logAnalyticsEvent } from './services/api';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import UploadPage from './pages/UploadPage';
@@ -49,6 +50,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        <AnalyticsTracker />
         <Toaster
           position="top-right"
           toastOptions={{
@@ -110,6 +112,21 @@ function App() {
       </Router>
     </AuthProvider>
   );
+}
+
+function AnalyticsTracker() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const pageName = location.pathname;
+    logAnalyticsEvent('page_view', {
+      path: pageName,
+      title: document.title || 'Escannora App',
+      search: location.search || '',
+    });
+  }, [location]);
+
+  return null;
 }
 
 export default App;

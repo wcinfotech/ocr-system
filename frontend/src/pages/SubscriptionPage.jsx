@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { buySubscription, getInvoices, downloadInvoice, getSubscriptionPlans } from '../services/api';
+import { buySubscription, getInvoices, downloadInvoice, getSubscriptionPlans, logAnalyticsEvent } from '../services/api';
 import {
   HiOutlineCheck,
   HiOutlineCreditCard,
@@ -204,6 +204,10 @@ const SubscriptionPage = () => {
       window.URL.revokeObjectURL(url);
       
       toast.success(`Receipt for ${invoiceId} downloaded.`);
+
+      logAnalyticsEvent('subscription_download_invoice', {
+        invoiceId,
+      });
     } catch (err) {
       console.error('Failed to download invoice:', err);
       toast.error('Failed to download receipt PDF.');
@@ -242,6 +246,13 @@ const SubscriptionPage = () => {
       const { data } = await buySubscription({ plan: planName, billingPeriod });
       if (data.success) {
         toast.success(`Subscription upgraded to ${planName} successfully! Invoice sent to your email.`);
+        
+        logAnalyticsEvent('subscription_upgrade_success', {
+          oldPlan: userPlan,
+          newPlan: planName,
+          billingPeriod,
+        });
+
         await refreshUser();
         await fetchInvoices(); // Refresh invoice list dynamically!
       }

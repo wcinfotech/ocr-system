@@ -7,6 +7,7 @@
  */
 
 const path = require('path');
+const { logEvent } = require('../services/firebaseService');
 const fs = require('fs');
 const crypto = require('crypto');
 const Bill = require('../models/Bill');
@@ -69,6 +70,15 @@ const uploadBill = async (req, res) => {
       });
     }
 
+    logEvent('document_upload_single', {
+      userId: req.user._id.toString(),
+      billId: placeholder._id.toString(),
+      batchId,
+      fileName: file.originalname,
+      fileType: ext,
+      fileSize: file.size,
+    }).catch(err => console.error('Upload logEvent error:', err));
+
     res.status(201).json({
       success: true,
       message: 'Bill uploaded — extraction in progress',
@@ -122,6 +132,13 @@ const uploadBills = async (req, res) => {
         status: 'processing',
       });
     }
+
+    logEvent('document_upload_batch', {
+      userId: req.user._id.toString(),
+      batchId,
+      totalFiles: files.length,
+      fileTypes: files.map(f => path.extname(f.originalname).toLowerCase().replace('.', '')),
+    }).catch(err => console.error('Batch upload logEvent error:', err));
 
     res.status(201).json({
       success: true,
@@ -183,6 +200,14 @@ const handleZipFile = async (placeholderId, batchId, filePath, fileName, userId)
       processingTimeMs: 0,
       totalBillsInFile: extractedFiles.length,
     });
+
+    logEvent('zip_extraction_success', {
+      userId: userId.toString(),
+      billId: placeholderId.toString(),
+      batchId,
+      fileName,
+      extractedCount: extractedFiles.length,
+    }).catch(err => console.error('Zip extraction logEvent error:', err));
     
     // Process each extracted file under the same batchId
     for (const file of extractedFiles) {
@@ -374,6 +399,17 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
         cloudinaryPublicId,
         errorMessage: `All ${totalBills} bill(s) are duplicates.`
       });
+
+      logEvent('document_processed', {
+        userId: userId.toString(),
+        billId: placeholderId.toString(),
+        batchId,
+        fileName,
+        fileType,
+        status: 'completed',
+        isDuplicate: true,
+        processingTimeMs,
+      }).catch(err => console.error('Duplicate doc logEvent error:', err));
     } else if (effectiveTotal === 1 && nonDupeBills.length === 1) {
       // Single non-duplicate bill
       const bill = nonDupeBills[0];
@@ -389,6 +425,21 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
         cloudinaryUrl,
         cloudinaryPublicId,
       });
+
+      logEvent('document_processed', {
+        userId: userId.toString(),
+        billId: placeholderId.toString(),
+        batchId,
+        fileName,
+        fileType,
+        status: 'completed',
+        isDuplicate: false,
+        invoiceNumber: bill.invoiceNumber,
+        amount: bill.amount,
+        platform: bill.platform,
+        confidence: bill.confidence,
+        processingTimeMs,
+      }).catch(err => console.error('Single doc logEvent error:', err));
     } else {
       // Multiple bills — save each as a separate row
       for (let i = 0; i < billsToSave.length; i++) {
@@ -415,6 +466,16 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
           await new Bill(update).save();
         }
       }
+
+      logEvent('document_processed_multiple', {
+        userId: userId.toString(),
+        batchId,
+        fileName,
+        fileType,
+        status: 'completed',
+        totalExtracted: billsToSave.length,
+        processingTimeMs,
+      }).catch(err => console.error('Multiple docs logEvent error:', err));
     }
 
     // Always clean up local temp file after text extraction completes
@@ -460,6 +521,16 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
       cloudinaryUrl,
       cloudinaryPublicId,
     });
+
+    logEvent('document_processing_failed', {
+      userId: userId.toString(),
+      billId: placeholderId.toString(),
+      batchId,
+      fileName,
+      fileType,
+      errorMessage: error.message,
+      retryCount,
+    }).catch(err => console.error('Failed doc logEvent error:', err));
   }
 };
 
@@ -621,6 +692,14 @@ const updateBill = async (req, res) => {
     const bill = await Bill.findOneAndUpdate({ _id: id, userId: req.user._id }, updateData, { new: true });
     if (!bill) return res.status(404).json({ success: false, error: 'Bill not found' });
 
+    logEvent('document_manual_correction', {
+      userId: req.user._id.toString(),
+      billId: bill._id.toString(),
+      invoiceNumber: bill.invoiceNumber,
+      platform: bill.platform,
+      correctedFields: Object.keys(req.body),
+    }).catch(err => console.error('Manual correction logEvent error:', err));
+
     res.json({ success: true, message: 'Bill updated successfully', data: bill });
   } catch (error) {
     console.error(`Update error: ${error.message}`);
@@ -650,6 +729,13 @@ const reprocessBill = async (req, res) => {
       .catch((err) => {
         console.error(`Background reprocess error for [${bill._id}]: ${err.message}`);
       });
+
+    logEvent('document_reprocess_triggered', {
+      userId: req.user._id.toString(),
+      billId: bill._id.toString(),
+      fileName: bill.originalFileName,
+      fileType: bill.fileType,
+    }).catch(err => console.error('Reprocess logEvent error:', err));
 
     res.json({ success: true, message: 'Invoice reprocessing triggered', data: { id, status: 'processing' } });
   } catch (error) {

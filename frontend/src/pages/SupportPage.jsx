@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { getTickets, createTicket } from '../services/api';
+import { getTickets, createTicket, logAnalyticsEvent } from '../services/api';
 import {
   HiOutlineMail,
   HiOutlineBookOpen,
@@ -80,6 +80,13 @@ const SupportPage = () => {
         setTickets([data.data, ...tickets]);
         toast.success('Support ticket submitted successfully! Check status below.');
         
+        logAnalyticsEvent('support_ticket_create', {
+          ticketId: data.data.id || data.data._id,
+          category,
+          priority,
+          subject,
+        });
+
         // Reset form
         setSubject('');
         setMessage('');

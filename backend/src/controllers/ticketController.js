@@ -7,6 +7,7 @@
 
 const Ticket = require('../models/Ticket');
 const { sendTicketConfirmationEmail } = require('../services/emailService');
+const { logEvent } = require('../services/firebaseService');
 
 /**
  * @desc    Create a new support ticket
@@ -46,6 +47,13 @@ const createTicket = async (req, res) => {
     }).catch((err) => {
       console.error(`Ticket confirmation email send error: ${err.message}`);
     });
+
+    logEvent('support_ticket_created', {
+      userId: req.user._id.toString(),
+      ticketId: ticket.ticketId,
+      category: ticket.category,
+      priority: ticket.priority,
+    }).catch(err => console.error('Ticket logEvent error:', err));
 
     res.status(201).json({
       success: true,
@@ -188,6 +196,12 @@ const replyTicketUser = async (req, res) => {
     });
 
     await ticket.save();
+
+    logEvent('support_ticket_replied', {
+      userId: req.user._id.toString(),
+      ticketId: ticket.ticketId,
+      category: ticket.category,
+    }).catch(err => console.error('Ticket reply logEvent error:', err));
 
     res.json({
       success: true,
