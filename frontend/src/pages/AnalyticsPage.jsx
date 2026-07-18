@@ -9,32 +9,15 @@ import {
   HiOutlineShoppingBag,
   HiOutlineDocumentReport,
 } from 'react-icons/hi';
-import { getBills } from '../services/api';
+import { useData } from '../context/DataContext';
+import SEO from '../components/SEO';
 
 const AnalyticsPage = () => {
-  const [bills, setBills] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [analytics, setAnalytics] = useState(null);
-
-  const fetchAnalyticsData = async () => {
-    setLoading(true);
-    try {
-      // Fetch up to 500 bills to run client-side analytics
-      const { data } = await getBills({ page: 1, limit: 500 });
-      if (data.success) {
-        setBills(data.data);
-        processAnalytics(data.data);
-      }
-    } catch (error) {
-      toast.error('Failed to load analytics data');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { analytics, loadingAnalytics: loading, fetchAnalyticsData } = useData();
 
   useEffect(() => {
-    fetchAnalyticsData();
-  }, []);
+    fetchAnalyticsData(true); // silent background load on tab mount
+  }, [fetchAnalyticsData]);
 
   const processAnalytics = (allBills) => {
     if (!allBills || allBills.length === 0) {
@@ -222,6 +205,7 @@ const AnalyticsPage = () => {
 
   return (
     <div className="space-y-8 animate-fadeIn">
+      <SEO title="Analytics" />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

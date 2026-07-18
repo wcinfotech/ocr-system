@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { forgotPassword as apiForgotPassword, resetPassword as apiResetPassword, verifyOtp as apiVerifyOtp } from '../services/api';
 import { HiOutlineMail, HiOutlineLockClosed, HiOutlineEye, HiOutlineEyeOff, HiOutlineArrowRight, HiOutlineLightningBolt, HiOutlineExclamationCircle, HiOutlineKey, HiOutlineShieldCheck, HiOutlineX } from 'react-icons/hi';
+import SEO from '../components/SEO';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -82,9 +83,11 @@ const LoginPage = () => {
     setSendingOtp(true);
     try {
       const { data } = await apiForgotPassword({ email: resetEmail.trim() });
-      if (data.success) {
-        toast.success('Verification OTP code sent to your email!');
+      if (data && (data.success || data.message)) {
+        toast.success(data.message || 'Verification OTP code sent to your email!');
         setResetStep(2); // opens the OTP popup modal
+      } else {
+        setResetError('Failed to send OTP verification code. Please try again.');
       }
     } catch (err) {
       setResetError(err.response?.data?.error || "You haven't account. Please sign up or check your email.");
@@ -155,6 +158,7 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center px-4 py-16 sm:px-6 lg:px-8 animate-fadeIn">
+      <SEO title="Sign In" />
       <div className="max-w-md w-full space-y-8 glass-card p-10 bg-white border border-slate-200 shadow-xl rounded-3xl">
         
         {!showForgotPassword ? (

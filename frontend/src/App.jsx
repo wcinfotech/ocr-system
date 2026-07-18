@@ -5,6 +5,7 @@ import { AuthProvider } from './context/AuthContext';
 import { logAnalyticsEvent } from './services/api';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
+import { DataProvider } from './context/DataContext';
 import UploadPage from './pages/UploadPage';
 import DashboardPage from './pages/DashboardPage';
 import BillDetailPage from './pages/BillDetailPage';
@@ -88,19 +89,21 @@ function App() {
             path="/app/*"
             element={
               <ProtectedRoute>
-                <Layout>
-                  <Routes>
-                    <Route path="dashboard" element={<DashboardPage />} />
-                    <Route path="upload" element={<UploadPage />} />
-                    <Route path="history" element={<BillHistoryPage />} />
-                    <Route path="analytics" element={<AnalyticsPage />} />
-                    <Route path="subscription" element={<SubscriptionPage />} />
-                    <Route path="support" element={<SupportPage />} />
-                    <Route path="profile" element={<ProfilePage />} />
-                    <Route path="bill/:id" element={<BillDetailPage />} />
-                    <Route path="*" element={<Navigate to="dashboard" replace />} />
-                  </Routes>
-                </Layout>
+                <DataProvider>
+                  <Layout>
+                    <Routes>
+                      <Route path="dashboard" element={<DashboardPage />} />
+                      <Route path="upload" element={<UploadPage />} />
+                      <Route path="history" element={<BillHistoryPage />} />
+                      <Route path="analytics" element={<AnalyticsPage />} />
+                      <Route path="subscription" element={<SubscriptionPage />} />
+                      <Route path="support" element={<SupportPage />} />
+                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="bill/:id" element={<BillDetailPage />} />
+                      <Route path="*" element={<Navigate to="dashboard" replace />} />
+                    </Routes>
+                  </Layout>
+                </DataProvider>
               </ProtectedRoute>
             }
           />

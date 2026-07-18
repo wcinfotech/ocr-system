@@ -21,6 +21,7 @@ import {
   HiOutlineExclamationCircle,
 } from 'react-icons/hi';
 import { Link } from 'react-router-dom';
+import SEO from '../components/SEO';
 
 const ProfilePage = () => {
   const { user, refreshUser } = useAuth();
@@ -164,9 +165,11 @@ const ProfilePage = () => {
     setSecurityError('');
     try {
       const { data } = await apiForgotPassword({ email: user.email });
-      if (data.success) {
-        toast.success('Verification OTP code sent to your email!');
+      if (data && (data.success || data.message)) {
+        toast.success(data.message || 'Verification OTP code sent to your email!');
         setSecurityStep(2); // opens the OTP popup modal
+      } else {
+        toast.error('Failed to send OTP verification code. Please try again.');
       }
     } catch (err) {
       const errMsg = err.response?.data?.error || 'Failed to send OTP';
@@ -260,6 +263,7 @@ const ProfilePage = () => {
 
   return (
     <div className="space-y-8 animate-fadeIn max-w-6xl mx-auto pb-10">
+      <SEO title="My Profile" />
       {/* Title */}
       <div>
         <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Account Settings</h2>

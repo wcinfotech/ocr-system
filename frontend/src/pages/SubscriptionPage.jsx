@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { buySubscription, getInvoices, downloadInvoice, getSubscriptionPlans, logAnalyticsEvent } from '../services/api';
+import SEO from '../components/SEO';
 import {
   HiOutlineCheck,
   HiOutlineCreditCard,
@@ -270,6 +271,7 @@ const SubscriptionPage = () => {
 
   return (
     <div className="space-y-12 animate-fadeIn pb-10">
+      <SEO title="Subscription" />
       {/* Title Header */}
       <div className="text-center space-y-4">
         <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">

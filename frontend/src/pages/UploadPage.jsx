@@ -15,6 +15,8 @@ import {
   HiOutlineChartBar,
 } from 'react-icons/hi';
 import { uploadBills } from '../services/api';
+import { useData } from '../context/DataContext';
+import SEO from '../components/SEO';
 
 const MAX_SIZE = 50 * 1024 * 1024;
 const MAX_FILES = 20;
@@ -83,6 +85,8 @@ const UploadPage = () => {
     multiple: true,
   });
 
+  const { fetchDashboardData, fetchHistoryData } = useData();
+
   const handleUpload = async () => {
     if (files.length === 0) return;
     setUploading(true);
@@ -93,6 +97,8 @@ const UploadPage = () => {
         setUploadComplete(true);
         setBatchResult(response.data.data);
         toast.success(`${files.length} file(s) uploaded! Processing started.`);
+        fetchDashboardData(true);
+        fetchHistoryData({}, true);
         setTimeout(() => navigate('/app/dashboard'), 2000);
       }
     } catch (error) {
@@ -135,6 +141,7 @@ const UploadPage = () => {
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
+      <SEO title="Upload Invoices" />
       {/* Page Title */}
       <div className="text-center">
         <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">Upload Bills</h2>
@@ -152,7 +159,7 @@ const UploadPage = () => {
           }`}
         >
           <input {...getInputProps()} />
-          <div className="flex flex-col items-center gap-4">
+          <div className={`flex flex-col items-center gap-4 ${isDragActive ? 'pointer-events-none' : ''}`}>
             <div
               className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300 ${
                 isDragActive ? 'bg-indigo-600/10 scale-110' : 'bg-slate-50'

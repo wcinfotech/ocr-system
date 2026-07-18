@@ -39,6 +39,7 @@ function UsersPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [detail, setDetail] = useState<User | null>(null);
   const [toDelete, setToDelete] = useState<User | null>(null);
+  const [toSuspend, setToSuspend] = useState<User | null>(null);
 
   const rows = data?.data ?? [];
 
@@ -87,7 +88,7 @@ function UsersPage() {
               </Tooltip>
             ) : (
               <Tooltip title="Suspend">
-                <IconButton size="small" color="warning" onClick={() => suspend.mutate(u.id)}>
+                <IconButton size="small" color="warning" onClick={() => setToSuspend(u)}>
                   <BlockIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
@@ -191,7 +192,7 @@ function UsersPage() {
                     Activate
                   </Button>
                 ) : (
-                  <Button size="small" variant="outlined" color="warning" onClick={() => suspend.mutate(detail.id)}>
+                  <Button size="small" variant="outlined" color="warning" onClick={() => setToSuspend(detail)}>
                     Suspend
                   </Button>
                 )}
@@ -219,6 +220,25 @@ function UsersPage() {
             remove.mutate(toDelete.id, {
               onSuccess: () => {
                 setToDelete(null);
+                setDetail(null);
+              },
+            });
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!toSuspend}
+        title="Suspend user?"
+        description={`Are you sure you want to suspend ${toSuspend?.name}? Suspended users will not be able to log in or use the platform.`}
+        confirmLabel="Suspend"
+        destructive
+        loading={suspend.isPending}
+        onClose={() => setToSuspend(null)}
+        onConfirm={() => {
+          if (toSuspend)
+            suspend.mutate(toSuspend.id, {
+              onSuccess: () => {
+                setToSuspend(null);
                 setDetail(null);
               },
             });

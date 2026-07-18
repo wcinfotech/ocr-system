@@ -4,7 +4,11 @@ const SEO = ({ title, description, canonicalUrl, schemas = [] }) => {
   useEffect(() => {
     // Update Document Title
     if (title) {
-      document.title = `${title} | Escannora`;
+      if (title.toLowerCase().includes('escannora')) {
+        document.title = title;
+      } else {
+        document.title = `${title} | Escannora`;
+      }
     } else {
       document.title = 'Escannora — Advanced Invoice & Document Processing';
     }

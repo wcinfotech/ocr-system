@@ -39,7 +39,7 @@ export const AboutUs = () => {
   return (
     <div className="bg-slate-50/50 min-h-screen pt-24">
       <SEO
-        title="About Us — Our OCR Document Parsing Mission"
+        title="About Us"
         description="Learn how Escannora is automating back-office shipping and logistics data extraction using advanced deep learning layout OCR."
       />
       <Navbar />
@@ -93,7 +93,7 @@ export const PricingPage = () => {
   return (
     <div className="bg-slate-50/50 min-h-screen pt-24">
       <SEO
-        title="Pricing Plans — OCR Scanning Subscriptions"
+        title="Pricing"
         description="Choose the right document volume package for your eCommerce store. Starter, Pro, and Enterprise options available with a 14-day free trial."
       />
       <Navbar />
@@ -130,7 +130,7 @@ export const FeaturesPage = () => {
   return (
     <div className="bg-slate-50/50 min-h-screen pt-24">
       <SEO
-        title="Features — Intelligent OCR Capabilities"
+        title="Features"
         description="Explore Escannora features including automated billing parsing, barcode scanning, order sync, and developer APIs."
       />
       <Navbar />
@@ -250,7 +250,7 @@ export const ContactUs = () => {
   return (
     <div className="bg-slate-50/50 min-h-screen pt-24">
       <SEO
-        title="Contact Us — Get in Touch with Escannora Support"
+        title="Contact Us"
         description="Have questions about custom invoice parser setup or enterprise subscription pricing? Message our logistics specialists today."
       />
       <Navbar />
@@ -384,7 +384,15 @@ export const BlogPage = () => {
     fetchArticles();
   }, []);
 
-  return <BlogTemplate posts={posts} loading={loading} />;
+  return (
+    <>
+      <SEO
+        title="Blog"
+        description="Read the latest news, updates, tutorials, and insights on e-commerce document parser automations at Escannora."
+      />
+      <BlogTemplate posts={posts} loading={loading} />
+    </>
+  );
 };
 
 /* =========================================================================
@@ -547,7 +555,7 @@ export const BookDemo = () => {
   return (
     <div className="bg-slate-50/50 min-h-screen pt-24">
       <SEO
-        title="Book a Demo — Schedule Escannora Walkthrough"
+        title="Book a Demo"
         description="Schedule a 1-on-1 session with our engineers to configure your custom OCR parser layout rules."
       />
       <Navbar />
@@ -625,7 +633,7 @@ export const FreeTrial = () => {
   return (
     <div className="bg-slate-50/50 min-h-screen pt-24">
       <SEO
-        title="Start Your 14-Day Free Trial"
+        title="Free Trial"
         description="Try Escannora free for 14 days. Extract documents, scan barcodes, and sync inventories instantly."
       />
       <Navbar />

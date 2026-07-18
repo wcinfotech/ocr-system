@@ -17,7 +17,8 @@ import {
   HiOutlineArrowRight,
   HiOutlineReceiptRefund,
 } from 'react-icons/hi';
-import { getStats, getBills } from '../services/api';
+import { useData } from '../context/DataContext';
+import SEO from '../components/SEO';
 
 const platformMetadata = {
   amazon: {
@@ -91,34 +92,15 @@ const getPlatformMeta = (plat) => {
 
 const DashboardPage = () => {
   const navigate = useNavigate();
-  const [stats, setStats] = useState(null);
-  const [recentBills, setRecentBills] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [statsRes, billsRes] = await Promise.all([
-        getStats(),
-        getBills({ page: 1, limit: 5, sortBy: 'createdAt', sortOrder: 'desc' }),
-      ]);
-
-      if (statsRes.data.success) {
-        setStats(statsRes.data.data);
-      }
-      if (billsRes.data.success) {
-        setRecentBills(billsRes.data.data);
-      }
-    } catch (error) {
-      toast.error('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { stats, recentBills, loadingDashboard: loading, fetchDashboardData } = useData();
 
   useEffect(() => {
-    loadData();
-  }, []);
+    fetchDashboardData(true); // silent background reload on tab mount
+  }, [fetchDashboardData]);
+
+  const loadData = () => {
+    fetchDashboardData(false); // full loading indicator/toast on manual click
+  };
 
   const handleQuickFileChange = (e) => {
     const files = e.target.files;
@@ -201,6 +183,7 @@ const DashboardPage = () => {
 
   return (
     <div className="space-y-8 animate-fadeIn">
+      <SEO title="Dashboard" />
       {/* Welcome Title */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

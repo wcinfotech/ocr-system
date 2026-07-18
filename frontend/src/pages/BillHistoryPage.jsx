@@ -15,7 +15,9 @@ import {
   HiOutlineExternalLink,
   HiOutlineReceiptRefund,
 } from 'react-icons/hi';
-import { getBills, deleteBill, exportBills, logAnalyticsEvent } from '../services/api';
+import { deleteBill, exportBills, logAnalyticsEvent } from '../services/api';
+import { useData } from '../context/DataContext';
+import SEO from '../components/SEO';
 
 const PLATFORMS = [
   { value: '', label: 'All Platforms' },
@@ -31,8 +33,14 @@ const PLATFORMS = [
 ];
 
 const BillHistoryPage = () => {
-  const [bills, setBills] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { 
+    historyBills: bills, 
+    pagination, 
+    loadingHistory: loading, 
+    fetchHistoryData, 
+    setHistoryBills: setBills 
+  } = useData();
+
   const [search, setSearch] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -43,43 +51,31 @@ const BillHistoryPage = () => {
   const [billType, setBillType] = useState('');
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
-  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 15, pages: 0 });
   const [deletingId, setDeletingId] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
   const fetchBills = useCallback(
-    async (page = 1) => {
-      setLoading(true);
-      try {
-        const params = {
-          page,
-          limit: pagination.limit,
-          sortBy,
-          sortOrder,
-        };
-        if (search) params.search = search;
-        if (startDate) params.startDate = startDate;
-        if (endDate) params.endDate = endDate;
-        if (platform) params.platform = platform;
-        if (billType) params.billType = billType;
+    async (page = 1, showSilent = true) => {
+      const params = {
+        page,
+        limit: pagination.limit || 15,
+        sortBy,
+        sortOrder,
+      };
+      if (search) params.search = search;
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
+      if (platform) params.platform = platform;
+      if (billType) params.billType = billType;
 
-        const { data } = await getBills(params);
-        if (data.success) {
-          setBills(data.data);
-          setPagination(data.pagination);
-        }
-      } catch (error) {
-        toast.error('Failed to load bills');
-      } finally {
-        setLoading(false);
-      }
+      await fetchHistoryData(params, showSilent);
     },
-    [search, startDate, endDate, platform, billType, sortBy, sortOrder, pagination.limit]
+    [search, startDate, endDate, platform, billType, sortBy, sortOrder, pagination.limit, fetchHistoryData]
   );
 
   useEffect(() => {
-    fetchBills(1);
+    fetchBills(1, true); // silent background load on tab change or filter change
   }, [search, startDate, endDate, platform, billType, sortBy, sortOrder]);
 
   const confirmDelete = (id) => {
@@ -206,6 +202,7 @@ const BillHistoryPage = () => {
 
   return (
     <div className="space-y-6">
+      <SEO title="Bill History" />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

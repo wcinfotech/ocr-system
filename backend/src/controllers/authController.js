@@ -268,14 +268,18 @@ const forgotPassword = async (req, res, next) => {
     user.resetPasswordOTPExpires = Date.now() + 10 * 60 * 1000;
     await user.save();
 
-    // Send email
-    const emailRes = await sendOtpEmail(user.email, user.name, otp);
-    if (!emailRes.success) {
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to send OTP verification email. Please try again later.',
+    // Send email asynchronously in the background to prevent blocking/hanging
+    sendOtpEmail(user.email, user.name, otp)
+      .then((emailRes) => {
+        if (!emailRes.success) {
+          console.error(`Background OTP email delivery failed for ${user.email}: ${emailRes.error}`);
+        } else {
+          console.log(`Background OTP email sent successfully to ${user.email}`);
+        }
+      })
+      .catch((err) => {
+        console.error(`Background OTP email crashed for ${user.email}: ${err.message}`);
       });
-    }
 
     res.json({
       success: true,

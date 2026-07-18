@@ -13,6 +13,7 @@ import {
   HiOutlineExclamationCircle,
 } from 'react-icons/hi';
 import { getBillById, deleteBill, updateBill, reprocessBill } from '../services/api';
+import SEO from '../components/SEO';
 
 const BillDetailPage = () => {
   const { id } = useParams();
@@ -22,6 +23,7 @@ const BillDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Form state for manual corrections
   const [formData, setFormData] = useState({
@@ -105,13 +107,14 @@ const BillDetailPage = () => {
   }, [bill?.status]);
 
   const handleDelete = async () => {
-    if (!window.confirm('Delete this bill permanently? This removes database files and cloud storage.')) return;
     try {
       await deleteBill(id);
       toast.success('Bill deleted successfully');
       navigate('/app/dashboard');
     } catch {
       toast.error('Failed to delete bill');
+    } finally {
+      setShowDeleteModal(false);
     }
   };
 
@@ -185,6 +188,7 @@ const BillDetailPage = () => {
 
   return (
     <div className="space-y-6">
+      <SEO title="Invoice Workspace" />
       {/* Top Banner Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div className="flex items-center gap-3">
@@ -247,7 +251,7 @@ const BillDetailPage = () => {
           </button>
 
           <button
-            onClick={handleDelete}
+            onClick={() => setShowDeleteModal(true)}
             className="px-3.5 py-2 rounded-xl bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 hover:text-red-700 flex items-center gap-2 text-xs font-bold transition-all shadow-sm"
           >
             <HiOutlineTrash className="w-4 h-4" /> Delete Bill
@@ -407,12 +411,14 @@ const BillDetailPage = () => {
                             ) : (
                               <>
                                 <span
-                                  className={`text-xs truncate ${
+                                  className={`text-xs ${
                                     val
-                                      ? row.mono
-                                        ? 'font-mono font-bold text-slate-800'
-                                        : 'font-bold text-slate-700'
-                                      : 'text-slate-400 italic'
+                                      ? `truncate ${
+                                          row.mono
+                                            ? 'font-mono font-bold text-slate-800'
+                                            : 'font-bold text-slate-700'
+                                        }`
+                                      : 'text-slate-400 italic pr-1'
                                   }`}
                                 >
                                   {row.isAmount && val != null
@@ -531,6 +537,45 @@ const BillDetailPage = () => {
           </div>
         </div>
       </div>
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="modal-backdrop">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full mx-4 shadow-2xl border border-slate-100 animate-scaleUp relative overflow-hidden">
+            {/* Top red warning accent line */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-500 to-rose-600" />
+            
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-red-50 text-red-600 rounded-2xl shrink-0 border border-red-100/50 shadow-inner">
+                <HiOutlineExclamationCircle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1.5">
+                <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">Delete Invoice?</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Are you sure you want to delete this invoice permanently? This action will remove it from the system, delete all parsed structured fields, and purge the uploaded document from cloud storage.
+                </p>
+                <p className="text-[10px] text-red-500 font-bold bg-red-50/50 border border-red-100/30 px-2 py-1 rounded-lg inline-block">
+                  ⚠️ This action is irreversible.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100/80 rounded-xl transition-all border border-slate-200/50"
+              >
+                Keep Invoice
+              </button>
+              <button
+                onClick={handleDelete}
+                className="px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 rounded-xl transition-all shadow-md shadow-red-500/10 hover:shadow-red-500/20 active:scale-[0.98]"
+              >
+                Yes, Delete Permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

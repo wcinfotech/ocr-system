@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { getTickets, createTicket, logAnalyticsEvent } from '../services/api';
+import { createTicket, logAnalyticsEvent, getPublicSettings } from '../services/api';
+import { useData } from '../context/DataContext';
+import SEO from '../components/SEO';
 import {
   HiOutlineMail,
-  HiOutlineBookOpen,
-  HiOutlineChatAlt2,
+  // HiOutlineBookOpen,
+  // HiOutlineChatAlt2,
   HiOutlineQuestionMarkCircle,
   HiOutlineTicket,
   HiOutlineClock,
@@ -13,31 +15,28 @@ import {
 } from 'react-icons/hi';
 
 const SupportPage = () => {
+  const { tickets, loadingTickets: loading, fetchTicketsData, setTickets } = useData();
   const [subject, setSubject] = useState('');
   const [category, setCategory] = useState('technical');
   const [priority, setPriority] = useState('medium');
   const [message, setMessage] = useState('');
   const [activeFaq, setActiveFaq] = useState(null);
-  const [tickets, setTickets] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [supportEmail, setSupportEmail] = useState('support@escannora.com');
 
   useEffect(() => {
-    fetchTickets();
-  }, []);
+    fetchTicketsData(true);
+    fetchSupportEmail();
+  }, [fetchTicketsData]);
 
-  const fetchTickets = async () => {
+  const fetchSupportEmail = async () => {
     try {
-      setLoading(true);
-      const { data } = await getTickets();
-      if (data.success) {
-        setTickets(data.data);
+      const { data } = await getPublicSettings();
+      if (data.success && data.data?.supportEmail) {
+        setSupportEmail(data.data.supportEmail);
       }
     } catch (err) {
-      console.error('Failed to fetch tickets:', err);
-      toast.error('Failed to load tickets.');
-    } finally {
-      setLoading(false);
+      console.error('Failed to fetch support email settings:', err);
     }
   };
 
@@ -129,6 +128,7 @@ const SupportPage = () => {
 
   return (
     <div className="space-y-8 animate-fadeIn pb-10">
+      <SEO title="Help & Support" />
       {/* Header */}
       <div>
         <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Support & Help Center</h2>
@@ -149,13 +149,17 @@ const SupportPage = () => {
               {[
                 {
                   title: 'Email Support',
-                  desc: 'support@escannora.com',
+                  desc: supportEmail,
                   icon: HiOutlineMail,
                   color: 'text-indigo-600',
                   bg: 'bg-indigo-50',
-                  action: () => window.open('mailto:support@escannora.com'),
+                  action: () => {
+                    window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${supportEmail}`, '_blank');
+                    navigator.clipboard.writeText(supportEmail);
+                    toast.success('Opening Gmail... Email copied to clipboard!');
+                  },
                 },
-                {
+                /* {
                   title: 'API Reference',
                   desc: 'Read developer integration docs',
                   icon: HiOutlineBookOpen,
@@ -170,7 +174,7 @@ const SupportPage = () => {
                   color: 'text-emerald-600',
                   bg: 'bg-emerald-50',
                   action: () => toast.success('Connecting to support assistant...'),
-                },
+                }, */
               ].map((c) => {
                 const Icon = c.icon;
                 return (
