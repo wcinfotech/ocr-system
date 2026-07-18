@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -59,6 +59,7 @@ const Github = ({ className }) => (
 export const Navbar = () => {
   const { isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -115,6 +116,30 @@ export const Navbar = () => {
     { name: 'Wholesalers & Distributors', path: '/wholesalers-order-management-software' },
   ];
 
+  const isHomeActive = location.pathname === '/';
+  const isFeaturesActive = location.pathname === '/features' || featureLinks.some(link => location.pathname === link.path);
+  const isMarketplaceActive = marketplaceLinks.some(link => location.pathname === link.path);
+  const isSolutionsActive = industryLinks.some(link => location.pathname === link.path) || location.pathname === '/about-us';
+  const isPricingActive = location.pathname === '/pricing';
+  const isBlogActive = location.pathname === '/blog';
+  const isContactActive = location.pathname === '/contact-us';
+
+  const getLinkClass = (isActive) => {
+    return `text-sm font-semibold transition-all relative py-1 ${
+      isActive
+        ? 'text-blue-600 after:absolute after:-bottom-1.5 after:left-0 after:right-0 after:h-0.5 after:bg-blue-600 after:rounded-full'
+        : 'text-slate-600 hover:text-blue-600'
+    }`;
+  };
+
+  const getMobileLinkClass = (isActive) => {
+    return `text-base font-bold transition-all duration-200 px-3 py-2 rounded-xl flex items-center ${
+      isActive
+        ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600 pl-2'
+        : 'text-slate-800 hover:text-blue-600 hover:bg-slate-50'
+    }`;
+  };
+
   return (
     <header
       className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
@@ -126,12 +151,12 @@ export const Navbar = () => {
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" onClick={closeDropdowns} className="flex items-center gap-2 group">
-          <img src="/logo.png" alt="Escannora Logo" className="h-12 object-contain group-hover:scale-102 transition-transform duration-200" />
+          <img src="/logo.png" alt="Escannora Logo" className="h-[58px] object-contain group-hover:scale-102 transition-transform duration-200" />
         </Link>
 
         {/* Desktop Nav */}
         <nav className="hidden lg:flex items-center gap-8">
-          <Link to="/" className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
+          <Link to="/" className={getLinkClass(isHomeActive)}>
             Home
           </Link>
           
@@ -139,7 +164,11 @@ export const Navbar = () => {
           <div className="relative">
             <button
               onClick={() => handleDropdown('features')}
-              className="flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors"
+              className={`flex items-center gap-1 transition-all relative py-1 ${
+                isFeaturesActive
+                  ? 'text-blue-600 after:absolute after:-bottom-1.5 after:left-0 after:right-0 after:h-0.5 after:bg-blue-600 after:rounded-full font-semibold'
+                  : 'text-slate-600 hover:text-blue-600 font-semibold'
+              }`}
             >
               Features <ChevronDown className={`w-4 h-4 transition-transform ${activeDropdown === 'features' ? 'rotate-185' : ''}`} />
             </button>
@@ -157,20 +186,31 @@ export const Navbar = () => {
                       Core Operations
                     </div>
                     <div className="grid gap-1 mt-2">
-                      {featureLinks.map((link) => (
-                        <Link
-                          key={link.path}
-                          to={link.path}
-                          onClick={closeDropdowns}
-                          className="px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-all"
-                        >
-                          {link.name}
-                        </Link>
-                      ))}
+                      {featureLinks.map((link) => {
+                        const isActive = location.pathname === link.path;
+                        return (
+                          <Link
+                            key={link.path}
+                            to={link.path}
+                            onClick={closeDropdowns}
+                            className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                              isActive
+                                ? 'bg-blue-50 text-blue-600 font-bold'
+                                : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'
+                            }`}
+                          >
+                            {link.name}
+                          </Link>
+                        );
+                      })}
                       <Link
                         to="/features"
                         onClick={closeDropdowns}
-                        className="px-3 py-2 mt-1 rounded-xl text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 text-center transition-all"
+                        className={`px-3 py-2 mt-1 rounded-xl text-xs font-bold text-center transition-all ${
+                          location.pathname === '/features'
+                            ? 'text-blue-600 bg-blue-100/50 hover:bg-blue-100'
+                            : 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                        }`}
                       >
                         View All Features
                       </Link>
@@ -185,7 +225,11 @@ export const Navbar = () => {
           <div className="relative">
             <button
               onClick={() => handleDropdown('marketplace')}
-              className="flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors"
+              className={`flex items-center gap-1 transition-all relative py-1 ${
+                isMarketplaceActive
+                  ? 'text-blue-600 after:absolute after:-bottom-1.5 after:left-0 after:right-0 after:h-0.5 after:bg-blue-600 after:rounded-full font-semibold'
+                  : 'text-slate-600 hover:text-blue-600 font-semibold'
+              }`}
             >
               Marketplace <ChevronDown className={`w-4 h-4 transition-transform ${activeDropdown === 'marketplace' ? 'rotate-185' : ''}`} />
             </button>
@@ -203,16 +247,23 @@ export const Navbar = () => {
                       Platform Integrations
                     </div>
                     <div className="grid grid-cols-2 gap-1 mt-2">
-                      {marketplaceLinks.slice(0, 8).map((link) => (
-                        <Link
-                          key={link.path}
-                          to={link.path}
-                          onClick={closeDropdowns}
-                          className="px-2.5 py-2 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-all truncate"
-                        >
-                          {link.name.split(' ')[0]}
-                        </Link>
-                      ))}
+                      {marketplaceLinks.slice(0, 8).map((link) => {
+                        const isActive = location.pathname === link.path;
+                        return (
+                          <Link
+                            key={link.path}
+                            to={link.path}
+                            onClick={closeDropdowns}
+                            className={`px-2.5 py-2 rounded-xl text-xs font-medium transition-all truncate ${
+                              isActive
+                                ? 'bg-blue-50 text-blue-600 font-bold'
+                                : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'
+                            }`}
+                          >
+                            {link.name.split(' ')[0]}
+                          </Link>
+                        );
+                      })}
                     </div>
                     <div className="mt-3 pt-3 border-t border-slate-100 flex">
                       <Link
@@ -233,7 +284,11 @@ export const Navbar = () => {
           <div className="relative">
             <button
               onClick={() => handleDropdown('solutions')}
-              className="flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors"
+              className={`flex items-center gap-1 transition-all relative py-1 ${
+                isSolutionsActive
+                  ? 'text-blue-600 after:absolute after:-bottom-1.5 after:left-0 after:right-0 after:h-0.5 after:bg-blue-600 after:rounded-full font-semibold'
+                  : 'text-slate-600 hover:text-blue-600 font-semibold'
+              }`}
             >
               Solutions <ChevronDown className={`w-4 h-4 transition-transform ${activeDropdown === 'solutions' ? 'rotate-185' : ''}`} />
             </button>
@@ -251,20 +306,31 @@ export const Navbar = () => {
                       Industries We Serve
                     </div>
                     <div className="grid gap-1 mt-2">
-                      {industryLinks.map((link) => (
-                        <Link
-                          key={link.path}
-                          to={link.path}
-                          onClick={closeDropdowns}
-                          className="px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-all"
-                        >
-                          {link.name}
-                        </Link>
-                      ))}
+                      {industryLinks.map((link) => {
+                        const isActive = location.pathname === link.path;
+                        return (
+                          <Link
+                            key={link.path}
+                            to={link.path}
+                            onClick={closeDropdowns}
+                            className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                              isActive
+                                ? 'bg-blue-50 text-blue-600 font-bold'
+                                : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'
+                            }`}
+                          >
+                            {link.name}
+                          </Link>
+                        );
+                      })}
                       <Link
                         to="/about-us"
                         onClick={closeDropdowns}
-                        className="px-3 py-2 mt-1 rounded-xl text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 text-center transition-all"
+                        className={`px-3 py-2 mt-1 rounded-xl text-xs font-bold text-center transition-all ${
+                          location.pathname === '/about-us'
+                            ? 'text-blue-600 bg-blue-100/50 hover:bg-blue-100'
+                            : 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                        }`}
                       >
                         About Our Solutions
                       </Link>
@@ -275,13 +341,13 @@ export const Navbar = () => {
             </AnimatePresence>
           </div>
 
-          <Link to="/pricing" className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
+          <Link to="/pricing" className={getLinkClass(isPricingActive)}>
             Pricing
           </Link>
-          <Link to="/blog" className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
+          <Link to="/blog" className={getLinkClass(isBlogActive)}>
             Blog
           </Link>
-          <Link to="/contact-us" className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
+          <Link to="/contact-us" className={getLinkClass(isContactActive)}>
             Contact
           </Link>
         </nav>
@@ -354,22 +420,22 @@ export const Navbar = () => {
                 </div>
 
                 <nav className="flex flex-col gap-4">
-                  <Link to="/" onClick={closeDropdowns} className="text-base font-bold text-slate-800 hover:text-blue-600">
+                  <Link to="/" onClick={closeDropdowns} className={getMobileLinkClass(isHomeActive)}>
                     Home
                   </Link>
-                  <Link to="/features" onClick={closeDropdowns} className="text-base font-bold text-slate-800 hover:text-blue-600">
+                  <Link to="/features" onClick={closeDropdowns} className={getMobileLinkClass(isFeaturesActive)}>
                     Features
                   </Link>
-                  <Link to="/pricing" onClick={closeDropdowns} className="text-base font-bold text-slate-800 hover:text-blue-600">
+                  <Link to="/pricing" onClick={closeDropdowns} className={getMobileLinkClass(isPricingActive)}>
                     Pricing
                   </Link>
-                  <Link to="/about-us" onClick={closeDropdowns} className="text-base font-bold text-slate-800 hover:text-blue-600">
+                  <Link to="/about-us" onClick={closeDropdowns} className={getMobileLinkClass(location.pathname === '/about-us')}>
                     About Us
                   </Link>
-                  <Link to="/blog" onClick={closeDropdowns} className="text-base font-bold text-slate-800 hover:text-blue-600">
+                  <Link to="/blog" onClick={closeDropdowns} className={getMobileLinkClass(isBlogActive)}>
                     Blog
                   </Link>
-                  <Link to="/contact-us" onClick={closeDropdowns} className="text-base font-bold text-slate-800 hover:text-blue-600">
+                  <Link to="/contact-us" onClick={closeDropdowns} className={getMobileLinkClass(isContactActive)}>
                     Contact
                   </Link>
                 </nav>
@@ -436,7 +502,7 @@ export const Footer = () => {
         {/* Brand */}
         <div className="lg:col-span-2 space-y-6 text-left">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Escannora Logo" className="h-11 object-contain opacity-90" style={{ filter: 'brightness(0) invert(1)' }} />
+            <img src="/logo.png" alt="Escannora Logo" className="h-[54px] object-contain opacity-90" style={{ filter: 'brightness(0) invert(1)' }} />
           </div>
           <p className="text-sm text-slate-400 max-w-sm leading-relaxed">
             Escannora is the leading automated document extraction and OCR processing engine. We automate structured data extraction from GST invoices, bills, labels, and purchase orders for high-growth e-commerce sellers and logistics teams.
@@ -1387,7 +1453,21 @@ export const IndustryTemplate = ({ name, description, features }) => {
    BLOG TEMPLATE
    ========================================================================= */
 export const BlogTemplate = ({ posts, loading }) => {
-  const [activePost, setActivePost] = useState(null);
+  const getBlogImageUrl = (featuredImage) => {
+    if (!featuredImage) return null;
+    if (featuredImage.startsWith('http://') || featuredImage.startsWith('https://')) {
+      if (featuredImage.includes('/api/v1/uploads/')) {
+        return featuredImage.replace('/api/v1/uploads/', '/uploads/');
+      }
+      return featuredImage;
+    }
+    let apiURL = import.meta.env.VITE_API_URL || '';
+    if (!apiURL) {
+      return featuredImage;
+    }
+    const base = apiURL.startsWith('http://') || apiURL.startsWith('https://') ? apiURL : `https://${apiURL}`;
+    return `${base.replace(/\/$/, '')}${featuredImage}`;
+  };
 
   return (
     <div className="bg-slate-50/50 min-h-screen pt-24">
@@ -1408,16 +1488,22 @@ export const BlogTemplate = ({ posts, loading }) => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {posts && posts.map((post, idx) => (
-                <div
+                <Link
                   key={idx}
-                  onClick={() => setActivePost(post)}
-                  className="glass-card bg-white border border-slate-100 overflow-hidden rounded-3xl shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer hover:translate-y-[-4px]"
+                  to={`/blog/${post.slug}`}
+                  className="glass-card bg-white border border-slate-100 overflow-hidden rounded-3xl shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer hover:translate-y-[-4px] block text-left"
                 >
-                  <div className="h-48 bg-slate-50 flex items-center justify-center text-slate-300 border-b border-slate-100">
-                    <FileText className="w-12 h-12 text-slate-400/80" />
-                  </div>
-                  <div className="p-6 space-y-3 text-left">
-                    <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">{post.category}</span>
+                  {post.featuredImage ? (
+                    <div className="h-48 bg-slate-50 border-b border-slate-100 overflow-hidden">
+                      <img
+                        src={getBlogImageUrl(post.featuredImage)}
+                        alt={post.title}
+                        className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                      />
+                    </div>
+                  ) : null}
+                  <div className="p-6 space-y-3">
+                    <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">{post.category}</span>
                     <h3 className="text-base font-bold text-slate-900 leading-snug line-clamp-2">{post.title}</h3>
                     <p className="text-xs text-slate-500 leading-relaxed line-clamp-3">{post.excerpt}</p>
                     <div className="flex justify-between items-center text-[10px] text-slate-400 pt-3 border-t border-slate-100">
@@ -1425,51 +1511,12 @@ export const BlogTemplate = ({ posts, loading }) => {
                       <span className="font-bold text-blue-600 hover:text-blue-700 transition-colors">Read Article →</span>
                     </div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
         </div>
       </section>
-
-      {/* Premium Slide-in Blog Reader Modal */}
-      {activePost && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="relative w-full max-w-3xl max-h-[85vh] bg-white rounded-3xl shadow-2xl overflow-y-auto border border-slate-100">
-            {/* Header / Cover */}
-            <div className="sticky top-0 bg-white/85 backdrop-blur-md px-8 py-5 border-b border-slate-100 flex justify-between items-center z-10">
-              <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">{activePost.category}</span>
-              <button
-                onClick={() => setActivePost(null)}
-                className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            {/* Body */}
-            <div className="p-8 sm:p-10 space-y-6 text-left">
-              <div className="space-y-3">
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
-                  {activePost.title}
-                </h2>
-                <div className="flex items-center gap-2 text-xs text-slate-400">
-                  <span>Published {activePost.date}</span>
-                  <span>•</span>
-                  <span>By Escannora Team</span>
-                </div>
-              </div>
-
-              <div className="border-t border-slate-100 pt-6 prose prose-slate max-w-none text-slate-600 text-sm leading-relaxed space-y-4">
-                <div
-                  className="blog-article-content"
-                  dangerouslySetInnerHTML={{ __html: activePost.content }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       <CTA />
       <Footer />
@@ -1477,7 +1524,7 @@ export const BlogTemplate = ({ posts, loading }) => {
   );
 };
 
-/* =========================================================================
+/* =========================================================================================================
    RESOURCE TEMPLATE
    ========================================================================= */
 export const ResourceTemplate = ({ title, content }) => {

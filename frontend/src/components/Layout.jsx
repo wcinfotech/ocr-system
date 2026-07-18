@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   HiOutlineCloudUpload,
@@ -40,7 +40,9 @@ const Layout = ({ children }) => {
     <div className="flex flex-col h-full bg-white border-r border-slate-200">
       {/* Brand Logo */}
       <div className="flex items-center gap-3 px-6 h-20 border-b border-slate-100 shrink-0">
-        <img src="/logo.png" alt="Escannora Logo" className="h-12 object-contain" />
+        <Link to="/app/dashboard" className="flex items-center justify-start">
+          <img src="/logo.png" alt="Escannora Logo" className="h-[58px] object-contain" />
+        </Link>
       </div>
 
       {/* Nav Links */}
@@ -117,7 +119,9 @@ const Layout = ({ children }) => {
         {/* Mobile Header */}
         <header className="lg:hidden h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sticky top-0 z-30">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Escannora Logo" className="h-10 object-contain" />
+            <Link to="/app/dashboard" className="flex items-center">
+              <img src="/logo.png" alt="Escannora Logo" className="h-[52px] object-contain" />
+            </Link>
           </div>
           <button
             onClick={() => setMobileOpen(!mobileOpen)}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getPublicSettings, getBlogs, submitContactMessage } from '../services/api';
+import { getPublicSettings, getBlogs, getBlogBySlug, submitContactMessage } from '../services/api';
 import {
   Navbar,
   Footer,
@@ -365,6 +365,7 @@ export const BlogPage = () => {
             excerpt: p.excerpt,
             category: p.category,
             content: p.content,
+            featuredImage: p.featuredImage,
             date: new Date(p.publishedAt || p.createdAt).toLocaleDateString('en-US', {
               month: 'long',
               day: 'numeric',
@@ -384,6 +385,150 @@ export const BlogPage = () => {
   }, []);
 
   return <BlogTemplate posts={posts} loading={loading} />;
+};
+
+/* =========================================================================
+   BLOG DETAIL PAGE
+   ========================================================================= */
+export const BlogDetailPage = () => {
+  const { slug } = useParams();
+  const navigate = useNavigate();
+  const [post, setPost] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const getBlogImageUrl = (featuredImage) => {
+    if (!featuredImage) return null;
+    if (featuredImage.startsWith('http://') || featuredImage.startsWith('https://')) {
+      if (featuredImage.includes('/api/v1/uploads/')) {
+        return featuredImage.replace('/api/v1/uploads/', '/uploads/');
+      }
+      return featuredImage;
+    }
+    let apiURL = import.meta.env.VITE_API_URL || '';
+    if (!apiURL) {
+      return featuredImage;
+    }
+    const base = apiURL.startsWith('http://') || apiURL.startsWith('https://') ? apiURL : `https://${apiURL}`;
+    return `${base.replace(/\/$/, '')}${featuredImage}`;
+  };
+
+  useEffect(() => {
+    const fetchArticle = async () => {
+      try {
+        setLoading(true);
+        const { data } = await getBlogBySlug(slug);
+        if (data.success && data.data) {
+          const p = data.data;
+          setPost({
+            title: p.title,
+            excerpt: p.excerpt,
+            category: p.category,
+            content: p.content,
+            featuredImage: p.featuredImage,
+            date: new Date(p.publishedAt || p.createdAt).toLocaleDateString('en-US', {
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric',
+            }),
+            author: p.author || 'Escannora Team',
+          });
+        } else {
+          toast.error('Article not found');
+          navigate('/blog');
+        }
+      } catch (err) {
+        console.error('Failed to load blog post:', err);
+        toast.error('Failed to load article');
+        navigate('/blog');
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (slug) {
+      fetchArticle();
+    }
+  }, [slug, navigate]);
+
+  if (loading) {
+    return (
+      <div className="bg-slate-50/50 min-h-screen pt-24">
+        <Navbar />
+        <div className="flex justify-center items-center py-32">
+          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!post) return null;
+
+  return (
+    <div className="bg-slate-50/50 min-h-screen pt-24">
+      <SEO
+        title={`${post.title} — Escannora Blog`}
+        description={post.excerpt}
+      />
+      <Navbar />
+      <Breadcrumb
+        items={[
+          { name: 'Blog', path: '/blog' },
+          { name: post.title, path: '' },
+        ]}
+      />
+
+      <section className="py-12 bg-white">
+        <div className="max-w-4xl mx-auto px-6 space-y-8 text-left">
+          {/* Back button */}
+          <div>
+            <Link
+              to="/blog"
+              className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors"
+            >
+              ← Back to all articles
+            </Link>
+          </div>
+
+          {/* Header Info */}
+          <div className="space-y-4">
+            <span className="inline-block text-xs font-bold text-blue-600 uppercase tracking-wider bg-blue-50 px-3 py-1 rounded-full">
+              {post.category}
+            </span>
+            <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
+              {post.title}
+            </h1>
+            <div className="flex items-center gap-3 text-xs text-slate-400">
+              <span className="font-semibold text-slate-600">{post.author}</span>
+              <span>•</span>
+              <span>Published {post.date}</span>
+            </div>
+          </div>
+
+          {/* Featured Image */}
+          {post.featuredImage && (
+            <div className="w-full aspect-[21/9] rounded-3xl overflow-hidden shadow-sm border border-slate-100">
+              <img
+                src={getBlogImageUrl(post.featuredImage)}
+                alt={post.title}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+
+          {/* Article Body */}
+          <div className="border-t border-slate-100 pt-8">
+            <div
+              className="prose prose-slate max-w-none text-slate-600 text-sm sm:text-base leading-relaxed space-y-6 blog-article-content"
+              dangerouslySetInnerHTML={{ __html: post.content }}
+            />
+          </div>
+        </div>
+      </section>
+
+      <CTA />
+      <Footer />
+    </div>
+  );
 };
 
 /* =========================================================================

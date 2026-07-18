@@ -6,15 +6,10 @@ import {
   HiOutlineTrash,
   HiOutlineDocumentText,
   HiOutlineRefresh,
-  HiOutlineClipboardCopy,
   HiOutlinePencil,
   HiOutlineCheck,
   HiOutlineX,
-  HiOutlineDownload,
-  HiOutlineCode,
-  HiOutlineTerminal,
   HiOutlineReceiptRefund,
-  HiOutlineSearch,
   HiOutlineExclamationCircle,
 } from 'react-icons/hi';
 import { getBillById, deleteBill, updateBill, reprocessBill } from '../services/api';
@@ -25,7 +20,6 @@ const BillDetailPage = () => {
 
   const [bill, setBill] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('fields'); // fields, json, raw
   const [editMode, setEditMode] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
 
@@ -149,27 +143,6 @@ const BillDetailPage = () => {
     }
   };
 
-  const handleDownloadJSON = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(bill, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `invoice_data_${bill.invoiceNumber || id}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-  };
-
-  const copyRawText = () => {
-    if (bill?.rawExtractedText) {
-      navigator.clipboard.writeText(bill.rawExtractedText);
-      toast.success('Raw OCR text copied to clipboard');
-    }
-  };
-
-  const copyJSONText = () => {
-    navigator.clipboard.writeText(JSON.stringify(bill, null, 2));
-    toast.success('JSON structure copied to clipboard');
-  };
 
   if (loading) {
     return (
@@ -255,14 +228,6 @@ const BillDetailPage = () => {
           )}
 
           <button
-            onClick={handleDownloadJSON}
-            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-50 flex items-center gap-2 text-xs font-bold transition-all shadow-sm"
-          >
-            <HiOutlineDownload className="w-4 h-4" />
-            Export JSON
-          </button>
-
-          <button
             onClick={() => setEditMode(!editMode)}
             className={`px-3.5 py-2 rounded-xl flex items-center gap-2 text-xs font-bold transition-all shadow-sm ${
               editMode
@@ -293,31 +258,6 @@ const BillDetailPage = () => {
       {/* Main Workspace */}
       <div className="max-w-4xl mx-auto">
         <div className="space-y-5">
-          {/* Tab Selector */}
-          <div className="flex border-b border-slate-200 bg-slate-100 p-1 rounded-xl">
-            {[
-              { id: 'fields', label: 'Extracted Fields', icon: HiOutlineDocumentText },
-              { id: 'json', label: 'Data JSON', icon: HiOutlineCode },
-              { id: 'raw', label: 'Raw OCR Engine', icon: HiOutlineTerminal },
-            ].map((tab) => {
-              const TabIcon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${
-                    activeTab === tab.id
-                      ? 'bg-white text-slate-900 shadow-sm border border-slate-200/50'
-                      : 'text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <TabIcon className="w-4 h-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-
           {/* Processing and Error alerts */}
           {bill.status === 'processing' && (
             <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/50 flex items-center gap-3">
@@ -347,8 +287,7 @@ const BillDetailPage = () => {
 
           {/* Tab Contents */}
           <div className="space-y-4">
-            {activeTab === 'fields' && (
-              <form onSubmit={handleSave} className="space-y-4">
+            <form onSubmit={handleSave} className="space-y-4">
                 <div className="glass-card bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <h4 className="text-sm font-bold text-slate-800">Structured Data</h4>
@@ -589,68 +528,6 @@ const BillDetailPage = () => {
                   </div>
                 )}
               </form>
-            )}
-
-            {activeTab === 'json' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-bold text-slate-800">Exact Extracted JSON Output</h4>
-                  <button
-                    onClick={copyJSONText}
-                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors"
-                  >
-                    <HiOutlineClipboardCopy className="w-4 h-4" /> Copy JSON
-                  </button>
-                </div>
-                <pre className="text-xs font-mono bg-slate-900 text-cyan-400 p-5 rounded-2xl overflow-auto max-h-[600px] leading-relaxed shadow-lg">
-                  {JSON.stringify(bill, null, 2)}
-                </pre>
-              </div>
-            )}
-
-            {activeTab === 'raw' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-bold text-slate-800">OCR Raw Text Output</h4>
-                  <button
-                    onClick={copyRawText}
-                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors"
-                  >
-                    <HiOutlineClipboardCopy className="w-4 h-4" /> Copy Raw OCR
-                  </button>
-                </div>
-                <pre className="text-xs font-mono bg-slate-900 text-slate-300 p-5 rounded-2xl overflow-auto max-h-[350px] leading-relaxed shadow-lg whitespace-pre-wrap">
-                  {bill.rawExtractedText || 'No raw text parsed by the OCR engine.'}
-                </pre>
-
-                {/* Diagnostics details if present */}
-                {bill.ocrMetadata && (
-                  <div className="glass-card bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-sm">
-                    <h4 className="text-sm font-bold text-indigo-600">OCR Diagnostics</h4>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="p-2 border border-slate-100 rounded-lg">
-                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Pass Count</span>
-                        <span className="text-slate-700 font-bold">{bill.ocrMetadata.passUsed || '—'}</span>
-                      </div>
-                      <div className="p-2 border border-slate-100 rounded-lg">
-                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Text Confidence</span>
-                        <span className="text-slate-700 font-bold">{bill.ocrMetadata.ocrConfidence || 0}%</span>
-                      </div>
-                      <div className="p-2 border border-slate-100 rounded-lg">
-                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Quality Score</span>
-                        <span className="text-slate-700 font-bold">{bill.ocrMetadata.extractionQualityScore || 0}%</span>
-                      </div>
-                      <div className="p-2 border border-slate-100 rounded-lg">
-                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Barcode</span>
-                        <span className="text-slate-700 font-bold">
-                          {bill.ocrMetadata.barcodeDetected ? `✅ ${bill.ocrMetadata.barcodeFormat || ''}` : 'None'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>

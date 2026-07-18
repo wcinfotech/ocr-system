@@ -16,7 +16,7 @@ import SubscriptionPage from './pages/SubscriptionPage';
 import SupportPage from './pages/SupportPage';
 import ProfilePage from './pages/ProfilePage';
 import Home from './marketing/Home';
-import { AboutUs, PricingPage, FeaturesPage, ContactUs, BlogPage, BookDemo, FreeTrial } from './marketing/Pages';
+import { AboutUs, PricingPage, FeaturesPage, ContactUs, BlogPage, BlogDetailPage, BookDemo, FreeTrial } from './marketing/Pages';
 import SitemapPage from './marketing/SitemapPage';
 
 function App() {
@@ -50,6 +50,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        <ScrollToTop />
         <AnalyticsTracker />
         <Toaster
           position="top-right"
@@ -74,6 +75,7 @@ function App() {
           <Route path="/features" element={<FeaturesPage />} />
           <Route path="/contact-us" element={<ContactUs />} />
           <Route path="/blog" element={<BlogPage />} />
+          <Route path="/blog/:slug" element={<BlogDetailPage />} />
           <Route path="/book-demo" element={<BookDemo />} />
           <Route path="/free-trial" element={<FreeTrial />} />
 
@@ -112,6 +114,16 @@ function App() {
       </Router>
     </AuthProvider>
   );
+}
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
 }
 
 function AnalyticsTracker() {

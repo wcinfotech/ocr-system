@@ -97,6 +97,18 @@ function BlogsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
+  const getBlogImageUrl = (url: string) => {
+    if (!url) return "";
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      if (url.includes("/api/v1/uploads/")) {
+        return url.replace("/api/v1/uploads/", "/uploads/");
+      }
+      return url;
+    }
+    const rootUrl = env.API_BASE_URL.replace(/\/api\/v1\/?$/, "").replace(/\/api\/?$/, "");
+    return `${rootUrl}${url}`;
+  };
+
   const handleOpenCreate = () => {
     setEditingBlog(null);
     setTitle("");
@@ -138,8 +150,7 @@ function BlogsPage() {
     setImageUploading(true);
     try {
       const result = await blogService.uploadImage(file);
-      const fullUrl = `${env.API_BASE_URL}${result.url}`;
-      setFeaturedImage(fullUrl);
+      setFeaturedImage(result.url);
       toast.success("Image uploaded successfully!");
     } catch (err: any) {
       toast.error(err.message || "Image upload failed.");
@@ -424,7 +435,7 @@ function BlogsPage() {
                 >
                   <Box
                     component="img"
-                    src={featuredImage}
+                    src={getBlogImageUrl(featuredImage)}
                     alt="Featured"
                     sx={{
                       width: "100%",

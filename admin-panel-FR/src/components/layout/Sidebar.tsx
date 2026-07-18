@@ -41,7 +41,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       }}
     >
       <Box sx={{ px: 3, py: 2.5, display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
-        <img src="/logo.png" alt="Escannora Logo" style={{ height: 48, objectFit: "contain" }} />
+        <Link to="/dashboard" style={{ display: "flex", alignItems: "center" }}>
+          <img src="/logo.png" alt="Escannora Logo" style={{ height: 58, objectFit: "contain" }} />
+        </Link>
       </Box>
       <Divider />
 
