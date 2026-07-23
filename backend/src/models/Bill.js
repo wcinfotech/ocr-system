@@ -100,9 +100,11 @@ const billSchema = new mongoose.Schema(
     // ── Processing Metadata (v3) ──
     status: {
       type: String,
-      enum: ['processing', 'completed', 'failed'],
+      enum: ['processing', 'completed', 'failed', 'duplicate'],
       default: 'processing',
     },
+    isDuplicate: { type: Boolean, default: false },
+    duplicateOf: { type: mongoose.Schema.Types.ObjectId, ref: 'Bill', default: null },
     errorMessage: { type: String, default: null },
     ocrUsed: { type: Boolean, default: false },
     pagesProcessed: { type: Number, default: 0 },

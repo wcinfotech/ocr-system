@@ -335,61 +335,78 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
     let cloudinaryUrl = null;
     let cloudinaryPublicId = null;
 
-    // ── Per-bill de-duplication + save (Phase 13 v2) ──
-    // Each bill in the PDF is individually checked for duplicates.
-    // Non-duplicate bills are saved as separate rows in the DB.
+    // Helper for escaping regex special chars
+    const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // ── Per-bill de-duplication + save ──
     const nonDupeBills = [];
+    const dupeBills = [];
+
     for (const bill of bills) {
       let isDuplicate = false;
       let matchId = null;
 
-      if (bill.invoiceNumber) {
+      const cleanInv = bill.invoiceNumber ? String(bill.invoiceNumber).trim() : null;
+      const cleanOrd = bill.orderNumber ? String(bill.orderNumber).trim() : null;
+      const cleanAwb = bill.awbNumber ? String(bill.awbNumber).trim() : null;
+      const isTrivial = (val) => !val || val.length < 3 || ['N/A', 'NONE', '000', 'NULL', 'UNDEFINED', 'BILL', 'INVOICE'].includes(val.toUpperCase());
+
+      if (!isTrivial(cleanInv)) {
+        const invRegex = new RegExp(`^\\s*${escapeRegex(cleanInv)}\\s*$`, 'i');
         const match = await Bill.findOne({
-          invoiceNumber: bill.invoiceNumber,
-          platform: bill.platform,
-          status: 'completed',
+          invoiceNumber: invRegex,
+          status: { $in: ['completed', 'processing'] },
           _id: { $ne: placeholderId }
         });
-        if (match) { isDuplicate = true; matchId = match._id; }
+        if (match && (match.status === 'completed' || String(match._id) < String(placeholderId))) {
+          isDuplicate = true; matchId = match._id;
+        }
       }
-      if (!isDuplicate && bill.orderNumber) {
+      if (!isDuplicate && !isTrivial(cleanOrd)) {
+        const ordRegex = new RegExp(`^\\s*${escapeRegex(cleanOrd)}\\s*$`, 'i');
         const match = await Bill.findOne({
-          orderNumber: bill.orderNumber,
-          platform: bill.platform,
-          status: 'completed',
+          orderNumber: ordRegex,
+          status: { $in: ['completed', 'processing'] },
           _id: { $ne: placeholderId }
         });
-        if (match) { isDuplicate = true; matchId = match._id; }
+        if (match && (match.status === 'completed' || String(match._id) < String(placeholderId))) {
+          isDuplicate = true; matchId = match._id;
+        }
       }
-      if (!isDuplicate && bill.awbNumber) {
+      if (!isDuplicate && !isTrivial(cleanAwb)) {
+        const awbRegex = new RegExp(`^\\s*${escapeRegex(cleanAwb)}\\s*$`, 'i');
         const match = await Bill.findOne({
-          awbNumber: bill.awbNumber,
-          status: 'completed',
+          awbNumber: awbRegex,
+          status: { $in: ['completed', 'processing'] },
           _id: { $ne: placeholderId }
         });
-        if (match) { isDuplicate = true; matchId = match._id; }
+        if (match && (match.status === 'completed' || String(match._id) < String(placeholderId))) {
+          isDuplicate = true; matchId = match._id;
+        }
       }
 
-      if (isDuplicate) {
-        console.log(`⚠️ Duplicate bill [${bill.invoiceNumber || bill.orderNumber}] matches ${matchId} — skipping.`);
+      if (isDuplicate && matchId) {
+        console.log(`⚠️ Duplicate bill detected [Invoice/Order: ${cleanInv || cleanOrd || cleanAwb}] matching original bill ID ${matchId} — skipping duplicate save.`);
         bill._isDuplicate = true;
         bill._matchId = matchId;
+        dupeBills.push(bill);
       } else {
         nonDupeBills.push(bill);
       }
     }
 
-    // Determine what to save
-    const billsToSave = nonDupeBills.length > 0 ? nonDupeBills : bills;
-    const effectiveTotal = billsToSave.length;
+    if (nonDupeBills.length === 0) {
+      // All bills in this file are duplicates! Mark placeholder as 'duplicate' and save link to original
+      const primaryDup = dupeBills[0] || bills[0];
+      const originalBillId = primaryDup._matchId || null;
 
-    if (effectiveTotal === 0) {
-      // All bills are duplicates — mark the placeholder as completed with a note
-      const bill = bills[0];
       await Bill.findByIdAndUpdate(placeholderId, {
-        ...buildBillUpdate(bill, totalBills),
+        ...buildBillUpdate(primaryDup, totalBills),
         rawExtractedText: rawText,
-        status: 'completed',
+        status: 'duplicate',
+        isDuplicate: true,
+        duplicateOf: originalBillId,
+        errorMessage: 'This bill is already uploaded.',
         ocrUsed,
         pagesProcessed,
         processingTimeMs,
@@ -397,26 +414,27 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
         originalFile: "(Temporary - Deleted after extraction)",
         cloudinaryUrl,
         cloudinaryPublicId,
-        errorMessage: `All ${totalBills} bill(s) are duplicates.`
       });
 
-      logEvent('document_processed', {
+      logEvent('document_processed_duplicate', {
         userId: userId.toString(),
         billId: placeholderId.toString(),
+        originalBillId: originalBillId ? originalBillId.toString() : null,
         batchId,
         fileName,
         fileType,
-        status: 'completed',
-        isDuplicate: true,
+        status: 'duplicate',
         processingTimeMs,
       }).catch(err => console.error('Duplicate doc logEvent error:', err));
-    } else if (effectiveTotal === 1 && nonDupeBills.length === 1) {
+    } else if (nonDupeBills.length === 1) {
       // Single non-duplicate bill
       const bill = nonDupeBills[0];
       await Bill.findByIdAndUpdate(placeholderId, {
         ...buildBillUpdate(bill, totalBills),
         rawExtractedText: bill.rawExtractedText || rawText,
         status: 'completed',
+        isDuplicate: false,
+        duplicateOf: null,
         ocrUsed,
         pagesProcessed,
         processingTimeMs,
@@ -441,9 +459,9 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
         processingTimeMs,
       }).catch(err => console.error('Single doc logEvent error:', err));
     } else {
-      // Multiple bills — save each as a separate row
-      for (let i = 0; i < billsToSave.length; i++) {
-        const bill = billsToSave[i];
+      // Multiple non-duplicate bills — save each as a separate row
+      for (let i = 0; i < nonDupeBills.length; i++) {
+        const bill = nonDupeBills[i];
         const update = {
           userId,
           ...buildBillUpdate(bill, totalBills),
@@ -453,6 +471,8 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
           fileType,
           rawExtractedText: bill.rawExtractedText || '',
           status: 'completed',
+          isDuplicate: false,
+          duplicateOf: null,
           ocrUsed,
           pagesProcessed,
           processingTimeMs,
@@ -473,12 +493,10 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
         fileName,
         fileType,
         status: 'completed',
-        totalExtracted: billsToSave.length,
+        totalExtracted: nonDupeBills.length,
         processingTimeMs,
       }).catch(err => console.error('Multiple docs logEvent error:', err));
     }
-
-    // Always clean up local temp file after text extraction completes
     if (fs.existsSync(filePath)) {
       try {
         fs.unlinkSync(filePath);
@@ -583,12 +601,60 @@ const buildBillUpdate = (bill, totalBills) => {
   };
 };
 
+/** Helper to clean pre-existing duplicate bills in DB */
+const cleanupDuplicateBillsInDB = async (userId) => {
+  try {
+    const bills = await Bill.find({ userId, status: 'completed' }).sort({ createdAt: 1 });
+    const seen = new Map();
+    const dupeIdsToUpdate = [];
+
+    for (const b of bills) {
+      const inv = b.invoiceNumber ? String(b.invoiceNumber).trim().toUpperCase() : null;
+      const ord = b.orderNumber ? String(b.orderNumber).trim().toUpperCase() : null;
+      const awb = b.awbNumber ? String(b.awbNumber).trim().toUpperCase() : null;
+
+      const isTrivial = (v) => !v || v.length < 3 || ['N/A', 'NONE', '000', 'NULL', 'UNDEFINED', 'BILL', 'INVOICE'].includes(v);
+
+      let key = null;
+      if (!isTrivial(inv)) key = `INV:${inv}`;
+      else if (!isTrivial(ord)) key = `ORD:${ord}`;
+      else if (!isTrivial(awb)) key = `AWB:${awb}`;
+
+      if (key) {
+        if (seen.has(key)) {
+          const originalId = seen.get(key);
+          dupeIdsToUpdate.push({ id: b._id, duplicateOf: originalId });
+        } else {
+          seen.set(key, b._id);
+        }
+      }
+    }
+
+    if (dupeIdsToUpdate.length > 0) {
+      console.log(`🧹 Auto-cleaned ${dupeIdsToUpdate.length} existing duplicate bill(s) in DB for user ${userId}`);
+      for (const item of dupeIdsToUpdate) {
+        await Bill.findByIdAndUpdate(item.id, {
+          status: 'duplicate',
+          isDuplicate: true,
+          duplicateOf: item.duplicateOf,
+          errorMessage: 'This bill is already uploaded.',
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Error in cleanupDuplicateBillsInDB:', err);
+  }
+};
+
 // ════════════════════════════════════════════
 // CRUD ENDPOINTS
 // ════════════════════════════════════════════
 
 const getBills = async (req, res) => {
   try {
+    // Run cleanup for any pre-existing duplicate entries in DB
+    await cleanupDuplicateBillsInDB(req.user._id);
+
     const {
       page = 1, limit = 25, search = '',
       startDate, endDate, platform, billType,
@@ -596,6 +662,11 @@ const getBills = async (req, res) => {
     } = req.query;
 
     const query = { userId: req.user._id };
+    if (req.query.status) {
+      query.status = req.query.status;
+    } else {
+      query.status = { $ne: 'duplicate' };
+    }
     if (search) {
       query.$or = [
         { vendorName: { $regex: search, $options: 'i' } },
@@ -751,10 +822,12 @@ const reprocessBill = async (req, res) => {
 const getBatchStatus = async (req, res) => {
   try {
     const { batchId } = req.params;
-    const bills = await Bill.find({ uploadBatchId: batchId, userId: req.user._id }).select('status originalFileName errorMessage processingTimeMs');
+    const bills = await Bill.find({ uploadBatchId: batchId, userId: req.user._id })
+      .select('status originalFileName errorMessage processingTimeMs isDuplicate duplicateOf invoiceNumber orderNumber awbNumber platform amount vendorName billDate');
     if (bills.length === 0) return res.status(404).json({ success: false, error: 'Batch not found' });
 
     const completed = bills.filter(b => b.status === 'completed').length;
+    const duplicate = bills.filter(b => b.status === 'duplicate' || b.isDuplicate).length;
     const failed = bills.filter(b => b.status === 'failed').length;
     const processing = bills.filter(b => b.status === 'processing').length;
 
@@ -763,7 +836,7 @@ const getBatchStatus = async (req, res) => {
       data: {
         batchId,
         totalFiles: bills.length,
-        completed, failed, processing,
+        completed, duplicate, failed, processing,
         isComplete: processing === 0,
         files: bills,
       },
@@ -881,36 +954,44 @@ const getStats = async (req, res) => {
   try {
     const userId = req.user._id;
 
+    // Base filter: always exclude duplicate bills from stats
+    const notDupe = { $ne: 'duplicate' };
+
     // Date calculations
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const [total, completed, failed, processing, todayCount, monthCount] = await Promise.all([
-      Bill.countDocuments({ userId }),
+      Bill.countDocuments({ userId, status: notDupe }),
       Bill.countDocuments({ userId, status: 'completed' }),
       Bill.countDocuments({ userId, status: 'failed' }),
       Bill.countDocuments({ userId, status: 'processing' }),
-      Bill.countDocuments({ userId, createdAt: { $gte: todayStart } }),
-      Bill.countDocuments({ userId, createdAt: { $gte: monthStart } }),
+      Bill.countDocuments({ userId, status: notDupe, createdAt: { $gte: todayStart } }),
+      Bill.countDocuments({ userId, status: notDupe, createdAt: { $gte: monthStart } }),
     ]);
 
-    // Unique Vendors count
-    const vendors = await Bill.distinct('vendorName', { userId, vendorName: { $exists: true, $ne: '', $ne: null } });
+    // Unique Vendors count (exclude duplicates)
+    const vendors = await Bill.distinct('vendorName', {
+      userId,
+      status: notDupe,
+      vendorName: { $exists: true, $nin: ['', null] },
+    });
     const totalVendors = vendors.length;
 
-    // Total Amount sum
+    // Total Amount sum (only completed, not duplicate)
     const amountStats = await Bill.aggregate([
-      { $match: { userId, status: 'completed', amount: { $exists: true, $ne: null } } },
+      { $match: { userId, status: 'completed', isDuplicate: { $ne: true }, amount: { $exists: true, $ne: null } } },
       { $group: { _id: null, totalAmount: { $sum: '$amount' } } },
     ]);
     const totalAmount = amountStats.length > 0 ? amountStats[0].totalAmount : 0;
 
-    // Success Rate
+    // Success Rate (exclude duplicates from denominator)
     const successRate = total > 0 ? Math.round((completed / total) * 100) : 100;
 
+    // Platform stats (exclude duplicates)
     const platformStats = await Bill.aggregate([
-      { $match: { userId, platform: { $ne: null } } },
+      { $match: { userId, status: { $ne: 'duplicate' }, isDuplicate: { $ne: true }, platform: { $ne: null } } },
       {
         $group: {
           _id: '$platform',
@@ -933,8 +1014,9 @@ const getStats = async (req, res) => {
       { $sort: { count: -1 } },
     ]);
 
+    // Recent batches (exclude duplicates)
     const recentBatches = await Bill.aggregate([
-      { $match: { userId } },
+      { $match: { userId, status: { $ne: 'duplicate' } } },
       { $group: { _id: '$uploadBatchId', count: { $sum: 1 }, firstFile: { $first: '$originalFileName' }, createdAt: { $first: '$createdAt' }, status: { $addToSet: '$status' } } },
       { $sort: { createdAt: -1 } },
       { $limit: 10 },

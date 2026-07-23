@@ -13,8 +13,10 @@ import {
   HiOutlineReceiptRefund,
   HiOutlineShoppingBag,
   HiOutlineChartBar,
+  HiOutlineExclamationCircle,
+  HiOutlineExternalLink,
 } from 'react-icons/hi';
-import { uploadBills } from '../services/api';
+import { uploadBills, getBatchStatus } from '../services/api';
 import { useData } from '../context/DataContext';
 import SEO from '../components/SEO';
 
@@ -29,6 +31,8 @@ const UploadPage = () => {
   const [progress, setProgress] = useState(0);
   const [uploadComplete, setUploadComplete] = useState(false);
   const [batchResult, setBatchResult] = useState(null);
+  const [duplicateModalData, setDuplicateModalData] = useState(null);
+  const [processingMessage, setProcessingMessage] = useState('');
 
   // Handle files preloaded from quick-upload on dashboard
   useEffect(() => {
@@ -66,6 +70,7 @@ const UploadPage = () => {
     setUploadComplete(false);
     setProgress(0);
     setBatchResult(null);
+    setDuplicateModalData(null);
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -87,19 +92,61 @@ const UploadPage = () => {
 
   const { fetchDashboardData, fetchHistoryData } = useData();
 
+  const pollBatchStatus = async (batchId) => {
+    let completed = false;
+    let attempts = 0;
+    const maxAttempts = 60; // 60s max wait
+
+    while (!completed && attempts < maxAttempts) {
+      attempts++;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      try {
+        const { data } = await getBatchStatus(batchId);
+        if (data.success) {
+          const { isComplete, files: batchFiles, completed: compCount, totalFiles } = data.data;
+          setProcessingMessage(`Processing ${compCount}/${totalFiles} file(s)...`);
+          if (isComplete) {
+            completed = true;
+            return data.data;
+          }
+        }
+      } catch (err) {
+        console.error('Error polling batch status:', err);
+      }
+    }
+    return null;
+  };
+
   const handleUpload = async () => {
     if (files.length === 0) return;
     setUploading(true);
-    setProgress(0);
+    setProgress(10);
+    setProcessingMessage('Uploading file(s)...');
     try {
       const response = await uploadBills(files, (p) => setProgress(p));
       if (response.data.success) {
-        setUploadComplete(true);
+        const { batchId } = response.data.data;
         setBatchResult(response.data.data);
-        toast.success(`${files.length} file(s) uploaded! Processing started.`);
+        setProcessingMessage('Extracting OCR text & checking duplicates...');
+
+        // Poll backend until batch processing finishes
+        const finalBatch = await pollBatchStatus(batchId);
+
+        // Refresh data
         fetchDashboardData(true);
         fetchHistoryData({}, true);
-        setTimeout(() => navigate('/app/dashboard'), 2000);
+
+        const batchFiles = finalBatch?.files || [];
+        const duplicates = batchFiles.filter((f) => f.status === 'duplicate' || f.isDuplicate);
+
+        if (duplicates.length > 0) {
+          setDuplicateModalData(duplicates);
+          toast.error(`${duplicates.length} bill(s) are already uploaded!`);
+        } else {
+          setUploadComplete(true);
+          toast.success(`${files.length} file(s) uploaded successfully!`);
+          setTimeout(() => navigate('/app/dashboard'), 1500);
+        }
       }
     } catch (error) {
       toast.error(error.response?.data?.error || 'Upload failed. Please try again.');
@@ -241,7 +288,7 @@ const UploadPage = () => {
             {(uploading || uploadComplete) && (
               <div className="mt-5 pt-4 border-t border-slate-100">
                 <div className="flex justify-between text-xs font-bold mb-1.5">
-                  <span className="text-slate-500">{uploadComplete ? 'Upload Complete' : 'Uploading...'}</span>
+                  <span className="text-slate-500">{uploadComplete ? 'Upload Complete' : (processingMessage || 'Uploading...')}</span>
                   <span className="text-indigo-600">{progress}%</span>
                 </div>
                 <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -265,7 +312,7 @@ const UploadPage = () => {
                 {uploading ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Processing {files.length} file(s)...
+                    {processingMessage || `Processing ${files.length} file(s)...`}
                   </>
                 ) : (
                   <>
@@ -316,6 +363,109 @@ const UploadPage = () => {
           })}
         </div>
       </div>
+
+      {/* Duplicate Bill Warning Modal */}
+      {duplicateModalData && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 sm:p-8 border border-slate-100 relative animate-scale-up">
+            <button
+              onClick={() => {
+                setDuplicateModalData(null);
+                clearAll();
+              }}
+              className="absolute top-5 right-5 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+            >
+              <HiOutlineX className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-4 mb-5">
+              <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 shadow-inner">
+                <HiOutlineExclamationCircle className="w-8 h-8" />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">It's Already Uploaded!</h3>
+                <p className="text-xs text-amber-700 font-bold mt-0.5 uppercase tracking-wider">
+                  Duplicate Bill Warning
+                </p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-600 mb-5 leading-relaxed font-medium">
+              This bill has already been uploaded previously and exists in your account. To avoid duplication, it was <strong className="text-slate-900">not uploaded again</strong>.
+            </p>
+
+            <div className="space-y-3 max-h-64 overflow-y-auto pr-1 mb-6">
+              {duplicateModalData.map((item, idx) => {
+                const targetId = item.duplicateOf || item._id;
+                return (
+                  <div
+                    key={item._id || idx}
+                    className="p-4 rounded-2xl border border-amber-200 bg-amber-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-slate-900 truncate">
+                        {item.originalFileName || 'Uploaded File'}
+                      </p>
+                      {item.invoiceNumber && (
+                        <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                          Invoice #: <span className="font-bold text-slate-800">{item.invoiceNumber}</span>
+                        </p>
+                      )}
+                      {item.vendorName && (
+                        <p className="text-xs text-slate-500 font-medium">
+                          Vendor: <span className="font-semibold text-slate-700">{item.vendorName}</span>
+                        </p>
+                      )}
+                      {item.amount != null && (
+                        <p className="text-xs text-slate-500 font-medium">
+                          Amount: <span className="font-semibold text-slate-700">₹{item.amount.toLocaleString('en-IN')}</span>
+                        </p>
+                      )}
+                      <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 bg-amber-200/80 text-amber-900 text-[10px] font-extrabold rounded-md uppercase tracking-wider">
+                        <span>Already Uploaded</span>
+                      </div>
+                    </div>
+
+                    {targetId && (
+                      <button
+                        onClick={() => {
+                          setDuplicateModalData(null);
+                          navigate(`/app/bill/${targetId}`);
+                        }}
+                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shadow-indigo-600/20 shrink-0 hover:scale-[1.02] active:scale-[0.98]"
+                      >
+                        <span>View Original Bill</span>
+                        <HiOutlineExternalLink className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <button
+                onClick={() => {
+                  setDuplicateModalData(null);
+                  clearAll();
+                }}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors"
+              >
+                Upload Another
+              </button>
+              <button
+                onClick={() => {
+                  setDuplicateModalData(null);
+                  navigate('/app/dashboard');
+                }}
+                className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors"
+              >
+                Go to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
