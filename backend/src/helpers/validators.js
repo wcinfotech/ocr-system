@@ -194,8 +194,74 @@ const validateAWB = (awbStr) => {
   return null;
 };
 
+/** Convert number in words (English / Indian format) to integer */
+const wordsToNumber = (str) => {
+  if (!str || typeof str !== 'string') return null;
+
+  const cleaned = str.toLowerCase()
+    .replace(/rupees|rupee|only|inr|rs\.?|and|payable/g, ' ')
+    .replace(/[\-\,]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned) return null;
+
+  const units = {
+    zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
+    ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16,
+    seventeen: 17, eighteen: 18, nineteen: 19
+  };
+
+  const tens = {
+    twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90
+  };
+
+  const words = cleaned.split(' ');
+  let total = 0;
+  let currentGroup = 0;
+  let wordFound = false;
+
+  for (const word of words) {
+    if (!word) continue;
+    if (units[word] !== undefined) {
+      currentGroup += units[word];
+      wordFound = true;
+    } else if (tens[word] !== undefined) {
+      currentGroup += tens[word];
+      wordFound = true;
+    } else if (/^hund/i.test(word)) {
+      currentGroup = (currentGroup || 1) * 100;
+      wordFound = true;
+    } else if (/^thous|^thou/i.test(word)) {
+      currentGroup = (currentGroup || 1) * 1000;
+      total += currentGroup;
+      currentGroup = 0;
+      wordFound = true;
+    } else if (/^lakh|^lac/i.test(word)) {
+      currentGroup = (currentGroup || 1) * 100000;
+      total += currentGroup;
+      currentGroup = 0;
+      wordFound = true;
+    } else if (/^crore|^cror/i.test(word)) {
+      currentGroup = (currentGroup || 1) * 10000000;
+      total += currentGroup;
+      currentGroup = 0;
+      wordFound = true;
+    } else if (/^mill/i.test(word)) {
+      currentGroup = (currentGroup || 1) * 1000000;
+      total += currentGroup;
+      currentGroup = 0;
+      wordFound = true;
+    }
+  }
+
+  total += currentGroup;
+  return wordFound && total > 0 ? total : null;
+};
+
 module.exports = {
   parseDate, isValidDate, parseAmount, validateGST,
   cleanVendorName, cleanIdField, cleanSkuField, validateHSN, parseInteger,
-  validateAWB,
+  validateAWB, wordsToNumber,
 };
+

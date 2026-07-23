@@ -22,7 +22,7 @@ const {
 
 const {
   parseDate, parseAmount, validateGST, validateHSN,
-  cleanVendorName, cleanIdField, cleanSkuField, parseInteger, validateAWB
+  cleanVendorName, cleanIdField, cleanSkuField, parseInteger, validateAWB, wordsToNumber
 } = require('../helpers/validators');
 
 // ════════════════════════════════════════════
@@ -142,12 +142,52 @@ const extractAmountField = (text, patterns) => {
         }
       }
     }
-    if (patternBest !== null) {
-      if (bestAmount === null || (patternBest > bestAmount && bestAmount <= 10)) bestAmount = patternBest;
-      if (bestAmount > 10.00) return bestAmount;
+    if (patternBest !== null && patternBest > 10.00) {
+      return patternBest;
+    } else if (patternBest !== null && bestAmount === null) {
+      bestAmount = patternBest;
     }
   }
   return bestAmount;
+};
+
+/**
+ * Specialized parser for Amazon & GST invoice total summary blocks.
+ * Prevents Tax Amount (IGST/CGST/SGST) from being misidentified as Total Bill Amount.
+ */
+const extractAmazonAmounts = (text) => {
+  const result = { amount: null, taxAmount: null, taxableValue: null };
+  if (!text) return result;
+
+  // 1. Check "Amount in Words:" (100% reliable ground truth in Indian GST/Amazon invoices)
+  const wordsMatch = text.match(/(?:Amount\s*in\s*Words|Words)\s*[:\-]?\s*([^\r\n]+)/i);
+  if (wordsMatch && wordsMatch[1]) {
+    const wordNum = wordsToNumber(wordsMatch[1]);
+    if (wordNum && wordNum > 0) {
+      result.amount = wordNum;
+    }
+  }
+
+  // 2. Scan TOTAL summary row (looking specifically for TOTAL: row)
+  const totalMatch = text.match(/(?:^|\n)\s*(?:TOTAL|Total)\s*[:\-]?\s*([\s\S]{0,150})/i);
+  if (totalMatch && totalMatch[1]) {
+    const rawBlock = totalMatch[1].split(/(?:Amount\s*in\s*Words|Sold\s*By|Billing\s*Address|Shipping\s*Address|GSTIN|Invoice|Page\s*\d)/i)[0];
+    const matches = [...rawBlock.matchAll(/(?:₹|Rs\.?|INR)?\s*([0-9,]+\.\d{2})/gi)];
+    const numbers = matches.map(m => parseAmount(m[1])).filter(n => n !== null && n >= 0);
+
+    if (numbers.length >= 2) {
+      // In Amazon GST invoices total row: Tax Amount (smaller), Total Amount (larger)
+      const sorted = [...numbers].sort((a, b) => b - a);
+      if (!result.amount || Math.abs(result.amount - sorted[0]) <= 5) {
+        result.amount = sorted[0]; // Maximum amount in TOTAL row is Total Amount
+      }
+      result.taxAmount = sorted[sorted.length - 1]; // Smaller amount is Tax Amount
+    } else if (numbers.length === 1 && !result.amount) {
+      result.amount = numbers[0];
+    }
+  }
+
+  return result;
 };
 
 const extractAWBNumber = (text) => {
@@ -607,12 +647,45 @@ const performCorrections = (bill, text = '', fileName = '') => {
     }
   }
 
-  // Cross-validation of Amounts: amount = taxable + tax
-  if (bill.taxAmount && !bill.amount) {
-    bill.amount = bill.taxAmount;
+  // ── Amount Reconciliation & Cross-Validation ──
+  // 1. Ground truth check: "Amount in Words"
+  const wordsMatch = text.match(/(?:Amount\s*in\s*Words|Words)\s*[:\-]?\s*([^\r\n]+)/i);
+  if (wordsMatch && wordsMatch[1]) {
+    const wordAmt = wordsToNumber(wordsMatch[1]);
+    if (wordAmt && wordAmt > 10) {
+      if (!bill.amount || (bill.taxAmount && Math.abs(bill.amount - bill.taxAmount) < 0.01) || bill.amount < (bill.taxAmount || 0)) {
+        bill.amount = wordAmt;
+      } else if (Math.abs(bill.amount - wordAmt) > 50 && wordAmt > (bill.taxAmount || 0)) {
+        bill.amount = wordAmt;
+      }
+    }
+  }
+
+  // 2. Anti-collision check: If bill.amount was wrongly set equal to bill.taxAmount
+  if (bill.taxAmount && bill.amount && Math.abs(bill.amount - bill.taxAmount) < 0.01) {
+    const matches = [...text.matchAll(/(?:₹|Rs\.?|INR)?\s*([0-9,]+\.\d{2})/gi)];
+    const validAmounts = matches
+      .map(m => parseAmount(m[1]))
+      .filter(n => n !== null && n > bill.taxAmount + 1 && n < 10000000);
+
+    if (validAmounts.length > 0) {
+      bill.amount = Math.max(...validAmounts);
+    }
+  }
+
+  // 3. Fallback if bill.amount is missing or strictly smaller than taxAmount
+  if (bill.taxAmount && (!bill.amount || bill.amount < bill.taxAmount)) {
+    const matches = [...text.matchAll(/(?:₹|Rs\.?|INR)?\s*([0-9,]+\.\d{2})/gi)];
+    const validAmounts = matches
+      .map(m => parseAmount(m[1]))
+      .filter(n => n !== null && n > bill.taxAmount + 1 && n < 10000000);
+
+    if (validAmounts.length > 0) {
+      bill.amount = Math.max(...validAmounts);
+    }
   }
   
-  // Taxable Value reconciliation
+  // 4. Line items total calculation
   const calculatedTotal = (bill.items || []).reduce((sum, item) => sum + (item.total || 0), 0);
   if (calculatedTotal > 0 && (!bill.amount || Math.abs(bill.amount - calculatedTotal) > 5)) {
     bill.amount = calculatedTotal;
@@ -701,12 +774,26 @@ const extractSingleBill = (text, fileName = '') => {
   const courierAndSeller = extractCourierAndSeller(text);
   const isReturn = detectReturnBill(text);
 
+  const amazonAmounts = (platform === 'amazon' || /amazon/i.test(text) || /Amount\s*in\s*Words/i.test(text))
+    ? extractAmazonAmounts(text)
+    : { amount: null, taxAmount: null };
+
+  const extractedAmount = extractAmountField(text, AMOUNT_PATTERNS);
+  const extractedTaxAmount = extractAmountField(text, TAX_AMOUNT_PATTERNS);
+
+  let finalAmount = amazonAmounts.amount || extractedAmount;
+  let finalTaxAmount = amazonAmounts.taxAmount || extractedTaxAmount;
+
+  if (finalAmount && finalTaxAmount && Math.abs(finalAmount - finalTaxAmount) < 0.01 && amazonAmounts.amount && amazonAmounts.amount > finalTaxAmount) {
+    finalAmount = amazonAmounts.amount;
+  }
+
   let bill = {
     billType: isReturn ? 'return' : 'regular',
     invoiceNumber: extractField(text, INVOICE_NUMBER_PATTERNS, cleanIdField),
     orderNumber: extractField(text, ORDER_NUMBER_PATTERNS, cleanIdField),
     billDate: extractDateField(text, DATE_PATTERNS),
-    amount: extractAmountField(text, AMOUNT_PATTERNS),
+    amount: finalAmount,
     vendorName: courierAndSeller.sellerName || extractVendorName(text),
     vendorDetails: nameAndAddr.shippingAddress || null,
     supplierPlatform: platform === 'generic_gst' ? 'other' : platform,
@@ -719,7 +806,7 @@ const extractSingleBill = (text, fileName = '') => {
     sku: primarySku,
     qty: primaryQty,
     gstNumber: extractField(text, GST_NUMBER_PATTERNS, validateGST),
-    taxAmount: extractAmountField(text, TAX_AMOUNT_PATTERNS),
+    taxAmount: finalTaxAmount,
 
     // Address Info
     customerName: nameAndAddr.customerName,

@@ -93,14 +93,15 @@ const DATE_PATTERNS = [
 
 // ── Amount / Total ──
 const AMOUNT_PATTERNS = [
-  /(?:grand\s*total|net\s*(?:payable|amount|value)|amount\s*payable|total\s*payable|balance\s*due|amount\s*due|invoice\s*value|total\s*payable\s*amount)\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.?\d{0,2})/i,
-  /(?:total\s*(?:amount|value)?)\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.?\d{0,2})/i,
-  /(?:bill\s*(?:total|amount))\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.?\d{0,2})/i,
-  /(?:invoice\s*(?:total|amount|value))\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.?\d{0,2})/i,
-  /(?:amount\s*received)\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.?\d{0,2})/i,
-  /(?:sub[\s\-]?total)\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.?\d{0,2})/i,
-  /(?:final\s*(?:total|amount))\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.?\d{0,2})/i,
-  /(?:order\s*(?:total|amount|value))\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.?\d{0,2})/i,
+  /(?:grand\s*total|net\s*payable|amount\s*payable|total\s*payable|balance\s*due|amount\s*due|invoice\s*value|total\s*payable\s*amount)\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.\d{2}|\b[1-9]\d{1,8}\b)/i,
+  /(?<!tax\s*)(?:total\s*amount)\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.\d{2}|\b[1-9]\d{1,8}\b)/i,
+  /(?:bill\s*(?:total|amount))\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.\d{2}|\b[1-9]\d{1,8}\b)/i,
+  /(?:invoice\s*(?:total|amount|value))\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.\d{2}|\b[1-9]\d{1,8}\b)/i,
+  /(?:amount\s*received)\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.\d{2}|\b[1-9]\d{1,8}\b)/i,
+  /(?:sub[\s\-]?total)\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.\d{2}|\b[1-9]\d{1,8}\b)/i,
+  /(?:final\s*(?:total|amount))\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.\d{2}|\b[1-9]\d{1,8}\b)/i,
+  /(?:order\s*(?:total|amount|value))\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.\d{2}|\b[1-9]\d{1,8}\b)/i,
+  /(?<!tax\s*)(?:total)\s*[:\-\|\s]?\s*(?:(?:Rs\.?|INR|₹|\$|USD)\s*)?([0-9,]+\.\d{2}|\b[1-9]\d{1,8}\b)/i,
 ];
 
 // ── AWB / Tracking Number ──
