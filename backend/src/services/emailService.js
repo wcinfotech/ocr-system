@@ -9,41 +9,29 @@ const nodemailer = require('nodemailer');
 
 // Create reusable transporter object using the SMTP config from environment variables
 const createTransporter = () => {
-  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const isGmail = host.toLowerCase().includes('gmail');
-  const user = process.env.SMTP_USER || 'contact.kitchenbazaar@gmail.com';
-  const pass = process.env.SMTP_PASS || 'huymugqwnbdfnona';
+  const rawHost = (process.env.SMTP_HOST || 'smtp.gmail.com').toString().trim();
+  const rawUser = (process.env.SMTP_USER || 'contact.kitchenbazaar@gmail.com').toString().trim();
+  const rawPass = (process.env.SMTP_PASS || 'huymugqwnbdfnona').toString().trim().replace(/\s+/g, ''); // Remove internal spaces if pasted with spaces
+  const rawPort = parseInt((process.env.SMTP_PORT || '465').toString().trim());
 
-  if (isGmail) {
-    // Gmail service configuration uses port 465 (SSL) automatically
-    // which bypasses port 587 firewall blocks enforced on live cloud providers
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user, pass },
-      tls: {
-        rejectUnauthorized: false,
-      },
-      connectionTimeout: 10000, // 10s connection timeout
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-    });
-  }
-
-  // Custom SMTP server configuration
-  const port = parseInt(process.env.SMTP_PORT || '465');
-  const secure = process.env.SMTP_SECURE === 'true' || port === 465;
+  const isGmail = rawHost.toLowerCase().includes('gmail');
+  const secure = process.env.SMTP_SECURE !== undefined ? process.env.SMTP_SECURE === 'true' : rawPort === 465;
 
   return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass },
+    host: isGmail ? 'smtp.gmail.com' : rawHost,
+    port: rawPort,
+    secure: isGmail ? true : secure, // Port 465 requires secure: true
+    auth: {
+      user: rawUser,
+      pass: rawPass,
+    },
     tls: {
       rejectUnauthorized: false,
     },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
+    family: 4, // Force IPv4 to prevent socket hanging on cloud container IPv6 networks (Railway/Render)
+    connectionTimeout: 15000, // 15s connection timeout
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
   });
 };
 
@@ -57,8 +45,11 @@ const transporter = createTransporter();
  * @param {string} options.html - HTML content of the email
  */
 const sendEmail = async (options) => {
+  const fromEmail = (process.env.SMTP_FROM || process.env.SMTP_USER || 'contact.kitchenbazaar@gmail.com').toString().trim();
+  const fromName = (process.env.SMTP_FROM_NAME || 'BillScan Pro Support').toString().trim();
+
   const mailOptions = {
-    from: `"${process.env.SMTP_FROM_NAME || 'BillScan Pro Support'}" <${process.env.SMTP_FROM || process.env.SMTP_USER || 'contact.kitchenbazaar@gmail.com'}>`,
+    from: `"${fromName}" <${fromEmail}>`,
     to: options.email,
     subject: options.subject,
     html: options.html,
@@ -71,17 +62,10 @@ const sendEmail = async (options) => {
   } catch (error) {
     console.error(`[Email Service] Primary SMTP send failed for ${options.email}: ${error.message}`);
     
-    // Fallback retry using direct Gmail service if standard send failed
+    // Fallback retry with fresh transporter if singleton connection had an issue
     try {
-      console.log(`[Email Service] Attempting retry via fallback Gmail SSL transporter...`);
-      const fallbackTransporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: process.env.SMTP_USER || 'contact.kitchenbazaar@gmail.com',
-          pass: process.env.SMTP_PASS || 'huymugqwnbdfnona',
-        },
-        tls: { rejectUnauthorized: false },
-      });
+      console.log(`[Email Service] Retrying email delivery via fallback IPv4 transport...`);
+      const fallbackTransporter = createTransporter();
       const fallbackInfo = await fallbackTransporter.sendMail(mailOptions);
       console.log(`[Email Service] Fallback email sent successfully to ${options.email} (MessageId: ${fallbackInfo.messageId})`);
       return { success: true, messageId: fallbackInfo.messageId };
