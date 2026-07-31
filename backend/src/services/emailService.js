@@ -16,19 +16,20 @@ const createTransporter = () => {
 
   if (isGmail) {
     // Gmail service configuration uses port 465 (SSL) automatically
-    // which bypasses port 587 firewall blocks enforced on live cloud providers (Render/AWS/Vercel/DigitalOcean)
+    // which bypasses port 587 firewall blocks enforced on live cloud providers
     return nodemailer.createTransport({
       service: 'gmail',
       auth: { user, pass },
       tls: {
         rejectUnauthorized: false,
       },
-      pool: true,
-      maxConnections: 5,
+      connectionTimeout: 10000, // 10s connection timeout
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
     });
   }
 
-  // Custom SMTP server configuration (e.g. SendGrid, Mailgun, AWS SES, cPanel)
+  // Custom SMTP server configuration
   const port = parseInt(process.env.SMTP_PORT || '465');
   const secure = process.env.SMTP_SECURE === 'true' || port === 465;
 
@@ -40,6 +41,9 @@ const createTransporter = () => {
     tls: {
       rejectUnauthorized: false,
     },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 };
 
