@@ -2,13 +2,13 @@ import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCKEucsh-l3O110lt7fFB_JGAH3bonZziU",
-  authDomain: "escannova-development.firebaseapp.com",
-  projectId: "escannova-development",
-  storageBucket: "escannova-development.firebasestorage.app",
-  messagingSenderId: "630465079759",
-  appId: "1:630465079759:web:a9cca705007cfb31c64aba",
-  measurementId: "G-LSD1NGC6QZ"
+  apiKey: "AIzaSyAX_Oll9por3wDtE8Ql3Qq-EWmXEnnH-q8",
+  authDomain: "escannora-dev.firebaseapp.com",
+  projectId: "escannora-dev",
+  storageBucket: "escannora-dev.firebasestorage.app",
+  messagingSenderId: "841028827620",
+  appId: "1:841028827620:web:648493fa7f26e34826eff1",
+  measurementId: "G-R7M0590RDM"
 };
 
 // Initialize Firebase App
@@ -20,7 +20,7 @@ let analytics = null;
 isSupported().then((supported) => {
   if (supported) {
     analytics = getAnalytics(app);
-    console.log("🔥 Firebase Client Analytics (GA4) initialized successfully (G-LSD1NGC6QZ)");
+    console.log("🔥 Firebase Client Analytics (GA4) initialized successfully (G-R7M0590RDM)");
   } else {
     console.warn("⚠️ Firebase Analytics is not supported in this browser environment.");
   }

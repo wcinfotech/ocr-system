@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { logAnalyticsEvent } from '../services/api';
 import { HiOutlineUser, HiOutlineMail, HiOutlineLockClosed, HiOutlineEye, HiOutlineEyeOff, HiOutlineArrowRight, HiOutlineLightningBolt, HiOutlineExclamationCircle } from 'react-icons/hi';
 import SEO from '../components/SEO';
 
@@ -39,6 +40,7 @@ const RegisterPage = () => {
     try {
       const success = await register(name, email, password);
       if (success) {
+        logAnalyticsEvent('user_register_success', { email });
         navigate('/app/dashboard');
       }
     } catch (err) {

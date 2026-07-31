@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { forgotPassword as apiForgotPassword, resetPassword as apiResetPassword, verifyOtp as apiVerifyOtp } from '../services/api';
+import { forgotPassword as apiForgotPassword, resetPassword as apiResetPassword, verifyOtp as apiVerifyOtp, logAnalyticsEvent } from '../services/api';
 import { HiOutlineMail, HiOutlineLockClosed, HiOutlineEye, HiOutlineEyeOff, HiOutlineArrowRight, HiOutlineLightningBolt, HiOutlineExclamationCircle, HiOutlineKey, HiOutlineShieldCheck, HiOutlineX } from 'react-icons/hi';
 import SEO from '../components/SEO';
 
@@ -64,9 +65,11 @@ const LoginPage = () => {
     try {
       const success = await login(email, password);
       if (success) {
+        logAnalyticsEvent('user_login_success', { email });
         navigate('/app/dashboard');
       }
     } catch (err) {
+      logAnalyticsEvent('user_login_failed', { email, error: err.message || 'Login failed' });
       setError(err.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
@@ -480,8 +483,8 @@ const LoginPage = () => {
       </div>
 
       {/* ================= ANIMATED OTP POPUP MODAL ================= */}
-      {showForgotPassword && resetStep === 2 && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn">
+      {showForgotPassword && resetStep === 2 && createPortal(
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-[9999] flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full border border-slate-100 shadow-2xl relative animate-scaleUp">
             <button
               type="button"
@@ -565,7 +568,8 @@ const LoginPage = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

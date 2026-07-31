@@ -1,6 +1,8 @@
 const { db, isInitialized } = require('../config/firebase');
 const https = require('https');
 
+let isFirestoreDisabled = false;
+
 /**
  * Log an analytics event to Firestore and optionally Google Analytics 4 (GA4)
  * @param {string} eventName - Name of the event (snake_case, e.g., 'user_login')
@@ -27,8 +29,8 @@ const logEvent = async (eventName, params = {}) => {
   // 1. Console log for audit and debugging
   console.log(`📊 [Analytics Event] ${eventName}:`, JSON.stringify(eventParams));
 
-  // 2. Log to Firestore Database
-  if (isInitialized && db) {
+  // 2. Log to Firestore Database (if enabled)
+  if (isInitialized && db && !isFirestoreDisabled) {
     try {
       await db.collection('analytics_events').add({
         eventName,
@@ -36,7 +38,12 @@ const logEvent = async (eventName, params = {}) => {
         createdAt: timestamp
       });
     } catch (error) {
-      console.error(`❌ Failed to write event "${eventName}" to Firestore:`, error.message);
+      if (error.message && (error.message.includes('PERMISSION_DENIED') || error.message.includes('disabled'))) {
+        isFirestoreDisabled = true;
+        console.warn(`⚠️ Cloud Firestore database is disabled or not yet created in project "escannora-dev". Backend Firestore event persistence is paused. Enable Firestore in Firebase Console if desired.`);
+      } else {
+        console.error(`❌ Failed to write event "${eventName}" to Firestore:`, error.message);
+      }
     }
   }
 

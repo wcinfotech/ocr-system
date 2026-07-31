@@ -84,14 +84,14 @@ const Layout = ({ children }) => {
             }
           >
             <div className="w-9 h-9 rounded-xl bg-blue-600/10 flex items-center justify-center text-blue-600 shrink-0 font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors duration-200">
-              {user.name.charAt(0).toUpperCase()}
+              {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-slate-800 truncate leading-snug group-hover:text-blue-600 transition-colors">
-                {user.name}
+                {user?.name || 'User'}
               </p>
-              <p className="text-xs text-slate-400 truncate leading-none mt-0.5 group-hover:text-blue-500/80 transition-colors">
-                {user.email}
+              <p className="text-xs text-slate-400 truncate leading-normal pb-0.5 group-hover:text-blue-500/80 transition-colors">
+                {user?.email}
               </p>
             </div>
           </NavLink>

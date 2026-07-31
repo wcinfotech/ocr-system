@@ -19,7 +19,10 @@ try {
     }
   } else {
     // Option 2: Default location in development (root of project)
-    const devPath = path.join(__dirname, '../../../escannova-development-firebase-adminsdk-fbsvc-0f437a5d0b.json');
+    const newDevPath = path.join(__dirname, '../../../escannora-dev-firebase-adminsdk-fbsvc-b30ea2f890.json');
+    const oldDevPath = path.join(__dirname, '../../../escannova-development-firebase-adminsdk-fbsvc-0f437a5d0b.json');
+    const devPath = fs.existsSync(newDevPath) ? newDevPath : oldDevPath;
+    
     if (fs.existsSync(devPath)) {
       serviceAccount = JSON.parse(fs.readFileSync(devPath, 'utf8'));
     } else {

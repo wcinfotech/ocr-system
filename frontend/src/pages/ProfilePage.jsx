@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { updateProfile, getInvoices, downloadInvoice, forgotPassword as apiForgotPassword, resetPassword as apiResetPassword, verifyOtp as apiVerifyOtp } from '../services/api';
@@ -580,8 +581,8 @@ const ProfilePage = () => {
                 )}
 
                 {/* ================= ANIMATED OTP POPUP MODAL ================= */}
-                {securityStep === 2 && (
-                  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn">
+                {securityStep === 2 && createPortal(
+                  <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-[9999] flex items-center justify-center p-4 animate-fadeIn">
                     <div className="bg-white rounded-3xl p-8 max-w-sm w-full border border-slate-100 shadow-2xl relative animate-scaleUp">
                       <button
                         type="button"
@@ -665,7 +666,8 @@ const ProfilePage = () => {
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </div>,
+                  document.body
                 )}
               </div>
             </div>

@@ -12,7 +12,7 @@ import {
   HiOutlineReceiptRefund,
   HiOutlineExclamationCircle,
 } from 'react-icons/hi';
-import { getBillById, deleteBill, updateBill, reprocessBill } from '../services/api';
+import { getBillById, deleteBill, updateBill, reprocessBill, logAnalyticsEvent } from '../services/api';
 import SEO from '../components/SEO';
 
 const BillDetailPage = () => {
@@ -51,6 +51,7 @@ const BillDetailPage = () => {
       if (data.success) {
         setBill(data.data);
         initForm(data.data);
+        logAnalyticsEvent('document_detail_view', { billId: id, billType: data.data.billType });
       }
     } catch (err) {
       toast.error('Bill not found');
@@ -140,6 +141,7 @@ const BillDetailPage = () => {
         toast.success('Invoice details updated');
         setBill(data.data);
         setEditMode(false);
+        logAnalyticsEvent('document_update_success', { billId: id });
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to save changes');

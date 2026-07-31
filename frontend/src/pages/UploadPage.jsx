@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useDropzone } from 'react-dropzone';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -16,7 +17,7 @@ import {
   HiOutlineExclamationCircle,
   HiOutlineExternalLink,
 } from 'react-icons/hi';
-import { uploadBills, getBatchStatus } from '../services/api';
+import { uploadBills, getBatchStatus, logAnalyticsEvent } from '../services/api';
 import { useData } from '../context/DataContext';
 import SEO from '../components/SEO';
 
@@ -145,10 +146,12 @@ const UploadPage = () => {
         } else {
           setUploadComplete(true);
           toast.success(`${files.length} file(s) uploaded successfully!`);
+          logAnalyticsEvent('document_upload_success', { fileCount: files.length, batchId });
           setTimeout(() => navigate('/app/dashboard'), 1500);
         }
       }
     } catch (error) {
+      logAnalyticsEvent('document_upload_failed', { error: error.message || 'Upload failed' });
       toast.error(error.response?.data?.error || 'Upload failed. Please try again.');
     } finally {
       setUploading(false);
@@ -365,7 +368,7 @@ const UploadPage = () => {
       </div>
 
       {/* Duplicate Bill Warning Modal */}
-      {duplicateModalData && (
+      {duplicateModalData && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
           <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 sm:p-8 border border-slate-100 relative animate-scale-up">
             <button
@@ -464,7 +467,8 @@ const UploadPage = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
