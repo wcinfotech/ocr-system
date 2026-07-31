@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
@@ -467,7 +468,7 @@ const BillHistoryPage = () => {
       )}
 
       {/* Delete Confirmation Modal */}
-      {showDeleteModal && (
+      {showDeleteModal && createPortal(
         <div className="modal-backdrop">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl border border-slate-100 animate-slideUp">
             <h3 className="text-lg font-bold text-slate-900">Confirm Delete</h3>
@@ -489,7 +490,8 @@ const BillHistoryPage = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

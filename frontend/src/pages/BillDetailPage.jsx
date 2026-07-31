@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
@@ -540,7 +541,7 @@ const BillDetailPage = () => {
         </div>
       </div>
       {/* Delete Confirmation Modal */}
-      {showDeleteModal && (
+      {showDeleteModal && createPortal(
         <div className="modal-backdrop">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full mx-4 shadow-2xl border border-slate-100 animate-scaleUp relative overflow-hidden">
             {/* Top red warning accent line */}
@@ -576,7 +577,8 @@ const BillDetailPage = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
