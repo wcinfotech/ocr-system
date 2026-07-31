@@ -106,6 +106,11 @@ export const AuthProvider = ({ children }) => {
         toast('Google Sign-In cancelled.', { icon: 'ℹ️' });
         return false;
       }
+      if (error.code === 'auth/unauthorized-domain') {
+        const domainMsg = 'This live domain is not authorized in Firebase Console. Please add your domain under Firebase -> Authentication -> Settings -> Authorized domains.';
+        toast.error(domainMsg);
+        throw new Error(domainMsg);
+      }
       const errMsg = error.response?.data?.error || error.message || 'Google login failed';
       toast.error(errMsg);
       throw new Error(errMsg);
