@@ -8,6 +8,17 @@
  */
 
 require('dotenv').config();
+const dns = require('dns');
+
+// Configure Google Public DNS for local development on Windows to prevent querySrv ECONNREFUSED for MongoDB Atlas
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    dns.setServers(['8.8.8.8', '8.8.4.4']);
+  } catch (e) {
+    // Ignore DNS override errors
+  }
+}
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
