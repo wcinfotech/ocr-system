@@ -268,20 +268,20 @@ const forgotPassword = async (req, res, next) => {
     user.resetPasswordOTPExpires = Date.now() + 10 * 60 * 1000;
     await user.save();
 
-    // Send OTP email in the background asynchronously so UI does not hang or stay stuck on loading spinner
+    // Send email asynchronously in the background to prevent blocking/hanging
     sendOtpEmail(user.email, user.name, otp)
-      .then((res) => {
-        if (res && res.success) {
-          console.log(`[OTP] Sent successfully to ${user.email}`);
+      .then((emailRes) => {
+        if (!emailRes.success) {
+          console.error(`Background OTP email delivery failed for ${user.email}: ${emailRes.error}`);
         } else {
-          console.error(`[OTP Error] Failed to deliver email to ${user.email}: ${res?.error}`);
+          console.log(`Background OTP email sent successfully to ${user.email}`);
         }
       })
       .catch((err) => {
-        console.error(`[OTP Exception] Error sending email to ${user.email}: ${err.message}`);
+        console.error(`Background OTP email crashed for ${user.email}: ${err.message}`);
       });
 
-    return res.json({
+    res.json({
       success: true,
       message: 'Verification OTP sent to your email address',
     });

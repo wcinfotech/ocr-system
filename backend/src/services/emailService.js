@@ -8,34 +8,15 @@
 const nodemailer = require('nodemailer');
 
 // Create reusable transporter object using the SMTP config from environment variables
-const createTransporter = () => {
-  const rawHost = (process.env.SMTP_HOST || 'smtp.gmail.com').toString().trim();
-  const rawUser = (process.env.SMTP_USER || 'contact.kitchenbazaar@gmail.com').toString().trim();
-  const rawPass = (process.env.SMTP_PASS || 'huymugqwnbdfnona').toString().trim().replace(/\s+/g, ''); // Remove internal spaces if pasted with spaces
-  const rawPort = parseInt((process.env.SMTP_PORT || '465').toString().trim());
-
-  const isGmail = rawHost.toLowerCase().includes('gmail');
-  const secure = process.env.SMTP_SECURE !== undefined ? process.env.SMTP_SECURE === 'true' : rawPort === 465;
-
-  return nodemailer.createTransport({
-    host: isGmail ? 'smtp.gmail.com' : rawHost,
-    port: rawPort,
-    secure: isGmail ? true : secure, // Port 465 requires secure: true
-    auth: {
-      user: rawUser,
-      pass: rawPass,
-    },
-    tls: {
-      rejectUnauthorized: false,
-    },
-    family: 4, // Force IPv4 to prevent socket hanging on cloud container IPv6 networks (Railway/Render)
-    connectionTimeout: 15000, // 15s connection timeout
-    greetingTimeout: 15000,
-    socketTimeout: 20000,
-  });
-};
-
-const transporter = createTransporter();
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || '587'),
+  secure: process.env.SMTP_PORT === '465', // true for 465, false for other ports
+  auth: {
+    user: process.env.SMTP_USER || 'contact.kitchenbazaar@gmail.com',
+    pass: process.env.SMTP_PASS || 'huymugqwnbdfnona',
+  },
+});
 
 /**
  * Send an email helper function
@@ -45,11 +26,8 @@ const transporter = createTransporter();
  * @param {string} options.html - HTML content of the email
  */
 const sendEmail = async (options) => {
-  const fromEmail = (process.env.SMTP_FROM || process.env.SMTP_USER || 'contact.kitchenbazaar@gmail.com').toString().trim();
-  const fromName = (process.env.SMTP_FROM_NAME || 'BillScan Pro Support').toString().trim();
-
   const mailOptions = {
-    from: `"${fromName}" <${fromEmail}>`,
+    from: `"${process.env.SMTP_FROM_NAME || 'BillScan Pro Support'}" <${process.env.SMTP_FROM || 'contact.kitchenbazaar@gmail.com'}>`,
     to: options.email,
     subject: options.subject,
     html: options.html,
@@ -57,22 +35,11 @@ const sendEmail = async (options) => {
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[Email Service] Email sent successfully to ${options.email} (MessageId: ${info.messageId})`);
+    console.log(`Email sent successfully: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error(`[Email Service] Primary SMTP send failed for ${options.email}: ${error.message}`);
-    
-    // Fallback retry with fresh transporter if singleton connection had an issue
-    try {
-      console.log(`[Email Service] Retrying email delivery via fallback IPv4 transport...`);
-      const fallbackTransporter = createTransporter();
-      const fallbackInfo = await fallbackTransporter.sendMail(mailOptions);
-      console.log(`[Email Service] Fallback email sent successfully to ${options.email} (MessageId: ${fallbackInfo.messageId})`);
-      return { success: true, messageId: fallbackInfo.messageId };
-    } catch (fallbackError) {
-      console.error(`[Email Service] Fallback email delivery also failed: ${fallbackError.message}`);
-      return { success: false, error: error.message };
-    }
+    console.error(`Email send failed: ${error.message}`);
+    return { success: false, error: error.message };
   }
 };
 
