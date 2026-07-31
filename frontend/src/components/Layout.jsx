@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import LogoutModal from './LogoutModal';
 import {
   HiOutlineCloudUpload,
   HiOutlineViewGrid,
@@ -20,8 +21,15 @@ const Layout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogoutClick = () => {
+    setMobileOpen(false);
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutModal(false);
     logout();
     navigate('/login');
   };
@@ -96,7 +104,7 @@ const Layout = ({ children }) => {
             </div>
           </NavLink>
           <button
-            onClick={handleLogout}
+            onClick={handleLogoutClick}
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
           >
             <HiOutlineLogout className="w-5 h-5 text-red-500" />
@@ -159,6 +167,12 @@ const Layout = ({ children }) => {
           </p>
         </footer>
       </div>
+
+      <LogoutModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={confirmLogout}
+      />
     </div>
   );
 };

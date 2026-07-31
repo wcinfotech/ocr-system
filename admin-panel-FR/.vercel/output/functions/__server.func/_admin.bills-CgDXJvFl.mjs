@@ -3,12 +3,12 @@ import { A as RestoreOutlined_default, N as FileDownloadOutlined_default, P as D
 import { n as require_react } from "./_libs/@ckeditor/ckeditor5-react+[...].mjs";
 import { J as Typography, U as Box, X as IconButton, m as Tooltip, p as Stack } from "./_libs/@mui/material+[...].mjs";
 import { i as formatDate, r as formatCurrency, s as formatPercent } from "./_ssr/format-CPIzLQoT.mjs";
+import { t as ConfirmDialog } from "./_ssr/ConfirmDialog-BpC-lVsT.mjs";
 import { n as PERMISSIONS } from "./_ssr/AuthContext-Bj2jbtLU.mjs";
 import { t as DataTable } from "./_ssr/DataTable-CUY1bpUh.mjs";
 import { t as useListParams } from "./_ssr/useListParams-DZ-LPTQa.mjs";
 import { t as PageHeader } from "./_ssr/PageHeader-9ov710wi.mjs";
 import { n as SearchInput, r as StatusChip, t as FilterSelect } from "./_ssr/Filters-DJMF8a9f.mjs";
-import { t as ConfirmDialog } from "./_ssr/ConfirmDialog-BpC-lVsT.mjs";
 import { t as PermissionGate } from "./_ssr/PermissionGate-CfxL_kdH.mjs";
 import { o as useRestoreBill, r as useDeleteBill, t as useBills } from "./_ssr/useCatalog-B0M2MMjf.mjs";
 //#region node_modules/.nitro/vite/services/ssr/assets/_admin.bills-CgDXJvFl.js

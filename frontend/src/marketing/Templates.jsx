@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import LogoutModal from '../components/LogoutModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Menu,
@@ -63,6 +64,7 @@ export const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -83,7 +85,13 @@ export const Navbar = () => {
     setMobileOpen(false);
   };
 
-  const handleLogout = () => {
+  const handleLogoutClick = () => {
+    closeDropdowns();
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutModal(false);
     logout();
     navigate('/login');
   };
@@ -363,7 +371,7 @@ export const Navbar = () => {
                 Go to Dashboard
               </Link>
               <button
-                onClick={handleLogout}
+                onClick={handleLogoutClick}
                 className="btn-primary py-2.5 px-5 bg-gradient-to-r from-red-600 to-red-500 shadow-md shadow-red-500/10 hover:shadow-lg hover:shadow-red-500/25"
               >
                 Logout
@@ -452,7 +460,7 @@ export const Navbar = () => {
                       Go to Dashboard
                     </Link>
                     <button
-                      onClick={handleLogout}
+                      onClick={handleLogoutClick}
                       className="w-full py-3 border border-red-200 text-red-600 hover:bg-red-50 font-bold rounded-xl transition-all"
                     >
                       Logout
@@ -488,6 +496,12 @@ export const Navbar = () => {
           </>
         )}
       </AnimatePresence>
+
+      <LogoutModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={confirmLogout}
+      />
     </header>
   );
 };

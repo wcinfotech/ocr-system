@@ -20,6 +20,7 @@ import { useState } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { initialsOf } from "@/utils/format";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 
 export const NAVBAR_HEIGHT = 64;
 
@@ -54,9 +55,15 @@ export function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [anchor, setAnchor] = useState<null | HTMLElement>(null);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
 
-  const handleLogout = async () => {
+  const handleLogoutClick = () => {
     setAnchor(null);
+    setLogoutDialogOpen(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    setLogoutDialogOpen(false);
     await logout();
     navigate({ to: "/login" });
   };
@@ -140,13 +147,24 @@ export function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
           </ListItemIcon>
           Profile
         </MenuItem>
-        <MenuItem onClick={handleLogout} sx={{ color: "error.main" }}>
+        <MenuItem onClick={handleLogoutClick} sx={{ color: "error.main" }}>
           <ListItemIcon>
             <LogoutIcon fontSize="small" color="error" />
           </ListItemIcon>
           Logout
         </MenuItem>
       </Menu>
+
+      <ConfirmDialog
+        open={logoutDialogOpen}
+        title="Confirm Logout"
+        description="Are you sure you want to log out of your admin account?"
+        confirmLabel="Logout"
+        cancelLabel="Cancel"
+        destructive
+        onConfirm={handleConfirmLogout}
+        onClose={() => setLogoutDialogOpen(false)}
+      />
     </Box>
   );
 }
