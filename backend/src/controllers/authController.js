@@ -485,23 +485,41 @@ const googleLogin = async (req, res, next) => {
 
     let decodedToken = null;
 
-    // Verify token using Firebase Admin SDK
+    // 1. Primary: Verify token using Firebase Admin SDK
     const { isInitialized } = require('../config/firebase');
     if (isInitialized) {
       const { getAuth } = require('firebase-admin/auth');
       try {
         decodedToken = await getAuth().verifyIdToken(idToken);
       } catch (tokenErr) {
-        console.error('Firebase Admin verifyIdToken error:', tokenErr.message);
-        return res.status(401).json({
-          success: false,
-          error: 'Invalid or expired Google authentication token',
-        });
+        console.warn('Firebase Admin verifyIdToken warning:', tokenErr.message);
       }
-    } else {
-      return res.status(500).json({
+    }
+
+    // 2. Fallback: Verify token using Google OAuth2 TokenInfo API
+    if (!decodedToken) {
+      try {
+        const gRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+        if (gRes.ok) {
+          const tokenData = await gRes.json();
+          decodedToken = {
+            email: tokenData.email,
+            name: tokenData.name,
+            picture: tokenData.picture,
+            uid: tokenData.sub,
+          };
+        } else {
+          console.error('Google tokeninfo API returned error status:', gRes.status);
+        }
+      } catch (fetchErr) {
+        console.error('Failed to verify token with Google tokeninfo API:', fetchErr.message);
+      }
+    }
+
+    if (!decodedToken || !decodedToken.email) {
+      return res.status(401).json({
         success: false,
-        error: 'Backend Firebase Admin SDK is not initialized. Unable to verify Google token.',
+        error: 'Invalid or expired Google authentication token',
       });
     }
 
