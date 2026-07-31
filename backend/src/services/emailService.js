@@ -6,16 +6,55 @@
  */
 
 const nodemailer = require('nodemailer');
+const dns = require('dns');
+
+// Force IPv4 DNS lookup order to prevent ENETUNREACH errors on cloud hosting servers that do not support IPv6 routing
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
 
 // Create reusable transporter object using the SMTP config from environment variables
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_PORT === '465', // true for 465, false for other ports
-  auth: {
-    user: process.env.SMTP_USER || 'contact.kitchenbazaar@gmail.com',
-    pass: process.env.SMTP_PASS || 'huymugqwnbdfnona',
-  },
+const smtpPort = parseInt(process.env.SMTP_PORT || '465');
+const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+const smtpUser = process.env.SMTP_USER || 'contact.kitchenbazaar@gmail.com';
+const smtpPass = process.env.SMTP_PASS || 'huymugqwnbdfnona';
+const isGmail = smtpHost.includes('gmail') || smtpUser.endsWith('@gmail.com');
+
+const transporterConfig = isGmail
+  ? {
+      service: 'gmail',
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
+      family: 4, // Force IPv4 to prevent ENETUNREACH on IPv6-disabled cloud servers
+    }
+  : {
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465, // true for 465, false for other ports
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
+      family: 4, // Force IPv4
+    };
+
+const transporter = nodemailer.createTransport(transporterConfig);
+
+// Verify SMTP connection on server initialization
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('❌ [SMTP Connection Warning] Mail server connection check failed:', error.message);
+  } else {
+    console.log('✅ [SMTP Connection Success] Mail server ready to deliver emails via', isGmail ? 'Gmail Service' : smtpHost);
+  }
 });
 
 /**
