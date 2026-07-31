@@ -8,15 +8,42 @@
 const nodemailer = require('nodemailer');
 
 // Create reusable transporter object using the SMTP config from environment variables
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_PORT === '465', // true for 465, false for other ports
-  auth: {
-    user: process.env.SMTP_USER || 'contact.kitchenbazaar@gmail.com',
-    pass: process.env.SMTP_PASS || 'huymugqwnbdfnona',
-  },
-});
+const createTransporter = () => {
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const isGmail = host.toLowerCase().includes('gmail');
+  const user = process.env.SMTP_USER || 'contact.kitchenbazaar@gmail.com';
+  const pass = process.env.SMTP_PASS || 'huymugqwnbdfnona';
+
+  if (isGmail) {
+    // Gmail service configuration uses port 465 (SSL) automatically
+    // which bypasses port 587 firewall blocks enforced on live cloud providers (Render/AWS/Vercel/DigitalOcean)
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass },
+      tls: {
+        rejectUnauthorized: false,
+      },
+      pool: true,
+      maxConnections: 5,
+    });
+  }
+
+  // Custom SMTP server configuration (e.g. SendGrid, Mailgun, AWS SES, cPanel)
+  const port = parseInt(process.env.SMTP_PORT || '465');
+  const secure = process.env.SMTP_SECURE === 'true' || port === 465;
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+    tls: {
+      rejectUnauthorized: false,
+    },
+  });
+};
+
+const transporter = createTransporter();
 
 /**
  * Send an email helper function
@@ -27,7 +54,7 @@ const transporter = nodemailer.createTransport({
  */
 const sendEmail = async (options) => {
   const mailOptions = {
-    from: `"${process.env.SMTP_FROM_NAME || 'BillScan Pro Support'}" <${process.env.SMTP_FROM || 'contact.kitchenbazaar@gmail.com'}>`,
+    from: `"${process.env.SMTP_FROM_NAME || 'BillScan Pro Support'}" <${process.env.SMTP_FROM || process.env.SMTP_USER || 'contact.kitchenbazaar@gmail.com'}>`,
     to: options.email,
     subject: options.subject,
     html: options.html,
@@ -35,11 +62,29 @@ const sendEmail = async (options) => {
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log(`Email sent successfully: ${info.messageId}`);
+    console.log(`[Email Service] Email sent successfully to ${options.email} (MessageId: ${info.messageId})`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error(`Email send failed: ${error.message}`);
-    return { success: false, error: error.message };
+    console.error(`[Email Service] Primary SMTP send failed for ${options.email}: ${error.message}`);
+    
+    // Fallback retry using direct Gmail service if standard send failed
+    try {
+      console.log(`[Email Service] Attempting retry via fallback Gmail SSL transporter...`);
+      const fallbackTransporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.SMTP_USER || 'contact.kitchenbazaar@gmail.com',
+          pass: process.env.SMTP_PASS || 'huymugqwnbdfnona',
+        },
+        tls: { rejectUnauthorized: false },
+      });
+      const fallbackInfo = await fallbackTransporter.sendMail(mailOptions);
+      console.log(`[Email Service] Fallback email sent successfully to ${options.email} (MessageId: ${fallbackInfo.messageId})`);
+      return { success: true, messageId: fallbackInfo.messageId };
+    } catch (fallbackError) {
+      console.error(`[Email Service] Fallback email delivery also failed: ${fallbackError.message}`);
+      return { success: false, error: error.message };
+    }
   }
 };
 
