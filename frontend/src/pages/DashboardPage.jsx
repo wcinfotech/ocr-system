@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useDropzone } from 'react-dropzone';
 import toast from 'react-hot-toast';
 import {
   HiOutlineDocumentText,
@@ -102,12 +103,26 @@ const DashboardPage = () => {
     fetchDashboardData(false); // full loading indicator/toast on manual click
   };
 
-  const handleQuickFileChange = (e) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      navigate('/app/upload', { state: { preloadedFiles: Array.from(files) } });
+  const onQuickDrop = useCallback((acceptedFiles) => {
+    if (acceptedFiles && acceptedFiles.length > 0) {
+      navigate('/app/upload', { state: { preloadedFiles: acceptedFiles } });
     }
-  };
+  }, [navigate]);
+
+  const { getRootProps: getQuickRootProps, getInputProps: getQuickInputProps, isDragActive: isQuickDragActive } = useDropzone({
+    onDrop: onQuickDrop,
+    accept: {
+      'application/pdf': ['.pdf'],
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/png': ['.png'],
+      'image/webp': ['.webp'],
+      'image/tiff': ['.tiff', '.tif'],
+      'image/bmp': ['.bmp'],
+      'image/heic': ['.heic'],
+      'application/zip': ['.zip'],
+    },
+    multiple: true,
+  });
 
   const getActivityTimeline = () => {
     if (recentBills.length === 0) return [];
@@ -452,24 +467,33 @@ const DashboardPage = () => {
           {/* Quick Upload Action */}
           <div className="space-y-4">
             <h3 className="text-lg font-bold text-slate-800">Quick Upload</h3>
-            <div className="glass-card bg-white border border-slate-200 shadow-sm rounded-2xl p-5 text-center flex flex-col items-center">
-              <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 mb-3">
-                <HiOutlineCloudUpload className="w-6 h-6" />
+            <div
+              {...getQuickRootProps()}
+              className={`glass-card border shadow-sm rounded-2xl p-5 text-center flex flex-col items-center cursor-pointer select-none transition-all duration-200 ${
+                isQuickDragActive
+                  ? 'border-indigo-500 bg-indigo-50/50 ring-4 ring-indigo-500/10 scale-[1.02]'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <input {...getQuickInputProps()} />
+              <div className="flex flex-col items-center w-full pointer-events-none">
+                <div
+                  className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 transition-all duration-200 ${
+                    isQuickDragActive ? 'bg-indigo-600 text-white scale-110 shadow-md shadow-indigo-500/30' : 'bg-indigo-50 text-indigo-600'
+                  }`}
+                >
+                  <HiOutlineCloudUpload className={`w-6 h-6 ${isQuickDragActive ? 'animate-bounce' : ''}`} />
+                </div>
+                <h4 className={`text-sm font-bold transition-colors ${isQuickDragActive ? 'text-indigo-600' : 'text-slate-800'}`}>
+                  {isQuickDragActive ? 'Drop Bills to Upload' : 'Process Invoices'}
+                </h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-[200px] mx-auto">
+                  {isQuickDragActive ? 'Release mouse to start parsing' : 'Select invoices or drag them here to trigger background OCR parsing'}
+                </p>
+                <div className="mt-4 btn-primary text-xs w-full py-2.5 flex items-center justify-center gap-1">
+                  <span>Select Files</span>
+                </div>
               </div>
-              <h4 className="text-sm font-bold text-slate-800">Process Invoices</h4>
-              <p className="text-xs text-slate-400 mt-1 max-w-[200px] mx-auto">
-                Select invoices or drag them here to trigger background OCR parsing
-              </p>
-              <label className="mt-4 btn-primary text-xs w-full py-2.5 flex items-center justify-center gap-1 cursor-pointer">
-                <span>Select Files</span>
-                <input
-                  type="file"
-                  multiple
-                  accept=".pdf,image/*,.zip"
-                  onChange={handleQuickFileChange}
-                  className="hidden"
-                />
-              </label>
             </div>
           </div>
 

@@ -505,7 +505,9 @@ function BlogsPage() {
                   onDragLeave={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    setImageDragActive(false);
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                      setImageDragActive(false);
+                    }
                   }}
                   onDragOver={(e) => {
                     e.preventDefault();
@@ -523,6 +525,9 @@ function BlogsPage() {
                     cursor: imageUploading ? "default" : "pointer",
                     bgcolor: imageDragActive ? "action.hover" : "transparent",
                     transition: "all 0.2s ease",
+                    "& *": {
+                      pointerEvents: "none",
+                    },
                     "&:hover": {
                       borderColor: "primary.light",
                       bgcolor: "action.hover",

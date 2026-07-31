@@ -204,43 +204,44 @@ const UploadPage = () => {
         {/* Dropzone */}
         <div
           {...getRootProps()}
-          className={`dropzone p-12 text-center shadow-sm ${
-            isDragActive ? 'active border-indigo-500 bg-indigo-50/20' : 'bg-white border-slate-200'
+          className={`dropzone min-h-[220px] p-8 sm:p-12 text-center shadow-sm transition-all duration-200 flex flex-col items-center justify-center select-none ${
+            isDragActive ? 'active border-indigo-500 bg-indigo-50/40 ring-4 ring-indigo-500/10 scale-[1.01]' : 'bg-white border-slate-200 hover:border-slate-300'
           }`}
         >
           <input {...getInputProps()} />
-          <div className={`flex flex-col items-center gap-4 ${isDragActive ? 'pointer-events-none' : ''}`}>
+          <div className="flex flex-col items-center gap-3 w-full max-w-md pointer-events-none">
             <div
               className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300 ${
-                isDragActive ? 'bg-indigo-600/10 scale-110' : 'bg-slate-50'
+                isDragActive ? 'bg-indigo-600 text-white scale-110 shadow-lg shadow-indigo-500/30' : 'bg-slate-50 text-slate-400'
               }`}
             >
-              <HiOutlineCloudUpload className={`w-8 h-8 ${isDragActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+              <HiOutlineCloudUpload className={`w-8 h-8 transition-transform duration-300 ${isDragActive ? 'scale-110 animate-bounce' : ''}`} />
             </div>
-            {isDragActive ? (
-              <p className="text-indigo-600 font-bold text-lg">Drop your files here...</p>
-            ) : (
-              <>
-                <div>
-                  <p className="text-slate-700 font-bold text-lg">Drag & drop bills here</p>
-                  <p className="text-slate-500 text-sm mt-1">
-                    or <span className="text-indigo-600 font-semibold hover:underline cursor-pointer">browse files</span>
-                    <span className="text-slate-400 ml-2">&bull; Up to {MAX_FILES} files</span>
-                  </p>
-                </div>
-                <div className="flex flex-wrap justify-center gap-2 mt-1">
-                  {['PDF', 'JPG', 'PNG', 'WEBP', 'ZIP'].map((type) => (
-                    <span
-                      key={type}
-                      className="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[10px] text-slate-500 font-bold tracking-wider"
-                    >
-                      {type}
-                    </span>
-                  ))}
-                </div>
-                <p className="text-slate-400 text-xs mt-1">Max 50MB per file &bull; ZIP file extraction supported</p>
-              </>
-            )}
+            
+            <div className="transition-all duration-200">
+              <p className={`font-bold text-lg transition-colors ${isDragActive ? 'text-indigo-600 scale-105' : 'text-slate-700'}`}>
+                {isDragActive ? 'Drop your bills here now!' : 'Drag & drop bills here'}
+              </p>
+              <p className="text-slate-500 text-sm mt-1">
+                or <span className="text-indigo-600 font-semibold underline decoration-indigo-200">browse files</span>
+                <span className="text-slate-400 ml-2">&bull; Up to {MAX_FILES} files</span>
+              </p>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-2 mt-1">
+              {['PDF', 'JPG', 'PNG', 'WEBP', 'ZIP'].map((type) => (
+                <span
+                  key={type}
+                  className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold tracking-wider transition-colors ${
+                    isDragActive ? 'border-indigo-200 bg-indigo-100/50 text-indigo-700' : 'border-slate-200 bg-slate-50 text-slate-500'
+                  }`}
+                >
+                  {type}
+                </span>
+              ))}
+            </div>
+            
+            <p className="text-slate-400 text-xs mt-0.5">Max 50MB per file &bull; ZIP file extraction supported</p>
           </div>
         </div>
 
