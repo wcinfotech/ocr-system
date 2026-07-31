@@ -49,6 +49,28 @@ const registerUser = async (req, res, next) => {
       password,
     });
 
+    // Sync user creation with Firebase Auth if Admin SDK is initialized
+    const { isInitialized } = require('../config/firebase');
+    if (isInitialized) {
+      const { getAuth } = require('firebase-admin/auth');
+      try {
+        const fbUser = await getAuth().createUser({
+          email: user.email,
+          password: password,
+          displayName: user.name,
+        });
+        if (fbUser && fbUser.uid) {
+          user.googleId = fbUser.uid;
+          await user.save();
+        }
+        console.log(`🔥 Synced new user to Firebase Auth: ${user.email}`);
+      } catch (fbErr) {
+        if (fbErr.code !== 'auth/email-already-exists') {
+          console.warn(`⚠️ Firebase Auth user creation warning for ${user.email}:`, fbErr.message);
+        }
+      }
+    }
+
     // Send registration welcome email in the background
     sendWelcomeEmail(user.email, user.name).catch((err) => {
       console.error(`Welcome email send error: ${err.message}`);
@@ -62,6 +84,7 @@ const registerUser = async (req, res, next) => {
       userId: user._id.toString(),
       userName: user.name,
       userEmail: user.email,
+      authProvider: 'local',
     }).catch(err => console.error('Register logEvent error:', err));
 
     res.status(201).json({
@@ -116,6 +139,30 @@ const loginUser = async (req, res, next) => {
       });
     }
 
+    // Background sync to Firebase Auth if Admin SDK is initialized and user is missing from Firebase
+    const { isInitialized } = require('../config/firebase');
+    if (isInitialized) {
+      const { getAuth } = require('firebase-admin/auth');
+      getAuth().getUserByEmail(user.email).catch(async (err) => {
+        if (err.code === 'auth/user-not-found') {
+          try {
+            const fbUser = await getAuth().createUser({
+              email: user.email,
+              password: password,
+              displayName: user.name,
+            });
+            if (fbUser && fbUser.uid && !user.googleId) {
+              user.googleId = fbUser.uid;
+              await user.save();
+            }
+            console.log(`🔥 Synced existing user to Firebase Auth on login: ${user.email}`);
+          } catch (syncErr) {
+            console.warn(`⚠️ Firebase Auth login sync warning for ${user.email}:`, syncErr.message);
+          }
+        }
+      });
+    }
+
     // Generate token
     const token = generateToken(user._id);
 
@@ -124,6 +171,7 @@ const loginUser = async (req, res, next) => {
       userId: user._id.toString(),
       userName: user.name,
       userEmail: user.email,
+      authProvider: 'local',
     }).catch(err => console.error('Login logEvent error:', err));
 
     res.json({
@@ -345,6 +393,18 @@ const resetPassword = async (req, res, next) => {
     user.resetPasswordOTPExpires = undefined;
     await user.save();
 
+    // Sync updated password to Firebase Auth
+    const { isInitialized } = require('../config/firebase');
+    if (isInitialized) {
+      const { getAuth } = require('firebase-admin/auth');
+      getAuth().getUserByEmail(user.email).then(async (fbUser) => {
+        await getAuth().updateUser(fbUser.uid, { password: password });
+        console.log(`🔥 Updated password in Firebase Auth for: ${user.email}`);
+      }).catch(err => {
+        console.warn(`⚠️ Could not sync password reset to Firebase Auth for ${user.email}:`, err.message);
+      });
+    }
+
     res.json({
       success: true,
       message: 'Password changed successfully! You can now log in.',
@@ -407,6 +467,124 @@ const verifyOtp = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Authenticate / Register user with Google ID token
+ * @route   POST /api/v1/auth/google
+ * @access  Public
+ */
+const googleLogin = async (req, res, next) => {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please provide a valid Google ID token',
+      });
+    }
+
+    let decodedToken = null;
+
+    // Verify token using Firebase Admin SDK
+    const { isInitialized } = require('../config/firebase');
+    if (isInitialized) {
+      const { getAuth } = require('firebase-admin/auth');
+      try {
+        decodedToken = await getAuth().verifyIdToken(idToken);
+      } catch (tokenErr) {
+        console.error('Firebase Admin verifyIdToken error:', tokenErr.message);
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid or expired Google authentication token',
+        });
+      }
+    } else {
+      return res.status(500).json({
+        success: false,
+        error: 'Backend Firebase Admin SDK is not initialized. Unable to verify Google token.',
+      });
+    }
+
+    const { email, name, picture, uid } = decodedToken;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Google account does not provide a verified email address',
+      });
+    }
+
+    const cleanEmail = email.toLowerCase();
+    let user = await User.findOne({ email: cleanEmail });
+
+    if (user) {
+      // User exists, link Google ID and avatar if missing
+      let modified = false;
+      if (!user.googleId) {
+        user.googleId = uid;
+        modified = true;
+      }
+      if (picture && !user.avatar) {
+        user.avatar = picture;
+        modified = true;
+      }
+      if (modified) {
+        await user.save();
+      }
+    } else {
+      // Create new user for Google Sign-In
+      user = await User.create({
+        name: name || cleanEmail.split('@')[0],
+        email: cleanEmail,
+        googleId: uid,
+        avatar: picture || '',
+        authProvider: 'google',
+      });
+
+      // Send welcome email asynchronously
+      sendWelcomeEmail(user.email, user.name).catch((err) => {
+        console.error(`Welcome email send error: ${err.message}`);
+      });
+
+      // Log registration event
+      logEvent('user_register', {
+        userId: user._id.toString(),
+        userName: user.name,
+        userEmail: user.email,
+        authProvider: 'google',
+      }).catch((err) => console.error('Register logEvent error:', err));
+    }
+
+    // Generate token
+    const token = generateToken(user._id);
+
+    // Log login event
+    logEvent('user_login', {
+      userId: user._id.toString(),
+      userName: user.name,
+      userEmail: user.email,
+      authProvider: 'google',
+    }).catch((err) => console.error('Login logEvent error:', err));
+
+    res.status(200).json({
+      success: true,
+      token,
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar || '',
+      },
+    });
+  } catch (error) {
+    console.error(`Google login controller error: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -415,4 +593,5 @@ module.exports = {
   forgotPassword,
   resetPassword,
   verifyOtp,
+  googleLogin,
 };

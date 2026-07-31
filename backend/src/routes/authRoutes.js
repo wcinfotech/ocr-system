@@ -7,13 +7,14 @@
 
 const express = require('express');
 const router = express.Router();
-const { registerUser, loginUser, getMe, updateProfile, forgotPassword, resetPassword, verifyOtp } = require('../controllers/authController');
+const { registerUser, loginUser, getMe, updateProfile, forgotPassword, resetPassword, verifyOtp, googleLogin } = require('../controllers/authController');
 const { protect } = require('../middleware/auth');
 
 const Setting = require('../models/Setting');
 
 router.post('/register', registerUser);
 router.post('/login', loginUser);
+router.post('/google', googleLogin);
 router.get('/me', protect, getMe);
 router.put('/me', protect, updateProfile);
 router.post('/forgot-password', forgotPassword);

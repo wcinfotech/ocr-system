@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAX_Oll9por3wDtE8Ql3Qq-EWmXEnnH-q8",
@@ -13,6 +14,8 @@ const firebaseConfig = {
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
 
 let analytics = null;
 
@@ -28,4 +31,4 @@ isSupported().then((supported) => {
   console.error("❌ Failed to check Firebase Analytics support:", err);
 });
 
-export { app, analytics };
+export { app, auth, googleProvider, analytics };
