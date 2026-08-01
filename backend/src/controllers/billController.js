@@ -354,6 +354,7 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
       if (!isTrivial(cleanInv)) {
         const invRegex = new RegExp(`^\\s*${escapeRegex(cleanInv)}\\s*$`, 'i');
         const match = await Bill.findOne({
+          userId,
           invoiceNumber: invRegex,
           status: { $in: ['completed', 'processing'] },
           _id: { $ne: placeholderId }
@@ -365,6 +366,7 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
       if (!isDuplicate && !isTrivial(cleanOrd)) {
         const ordRegex = new RegExp(`^\\s*${escapeRegex(cleanOrd)}\\s*$`, 'i');
         const match = await Bill.findOne({
+          userId,
           orderNumber: ordRegex,
           status: { $in: ['completed', 'processing'] },
           _id: { $ne: placeholderId }
@@ -376,6 +378,7 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
       if (!isDuplicate && !isTrivial(cleanAwb)) {
         const awbRegex = new RegExp(`^\\s*${escapeRegex(cleanAwb)}\\s*$`, 'i');
         const match = await Bill.findOne({
+          userId,
           awbNumber: awbRegex,
           status: { $in: ['completed', 'processing'] },
           _id: { $ne: placeholderId }
@@ -604,6 +607,19 @@ const buildBillUpdate = (bill, totalBills) => {
 /** Helper to clean pre-existing duplicate bills in DB */
 const cleanupDuplicateBillsInDB = async (userId) => {
   try {
+    // 1. Purge orphaned duplicate records whose parent bill was deleted
+    const dupes = await Bill.find({ userId, status: 'duplicate' });
+    for (const d of dupes) {
+      if (d.duplicateOf) {
+        const parentExists = await Bill.exists({ _id: d.duplicateOf });
+        if (!parentExists) {
+          console.log(`🧹 Removing orphaned duplicate record ${d._id} whose parent ${d.duplicateOf} was deleted`);
+          await Bill.findByIdAndDelete(d._id);
+        }
+      }
+    }
+
+    // 2. Mark any secondary completed bills as duplicate
     const bills = await Bill.find({ userId, status: 'completed' }).sort({ createdAt: 1 });
     const seen = new Map();
     const dupeIdsToUpdate = [];
@@ -719,6 +735,26 @@ const deleteBill = async (req, res) => {
   try {
     const bill = await Bill.findOne({ _id: req.params.id, userId: req.user._id });
     if (!bill) return res.status(404).json({ success: false, error: 'Bill not found' });
+
+    const userId = req.user._id;
+    const cleanInv = bill.invoiceNumber ? String(bill.invoiceNumber).trim() : null;
+    const cleanOrd = bill.orderNumber ? String(bill.orderNumber).trim() : null;
+    const cleanAwb = bill.awbNumber ? String(bill.awbNumber).trim() : null;
+    const isTrivial = (val) => !val || val.length < 3 || ['N/A', 'NONE', '000', 'NULL', 'UNDEFINED', 'BILL', 'INVOICE'].includes(val.toUpperCase());
+    const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // Build conditions to delete the bill and all associated duplicate/matching records for this user
+    const deleteConditions = [{ _id: bill._id }, { duplicateOf: bill._id }];
+    if (!isTrivial(cleanInv)) {
+      deleteConditions.push({ userId, invoiceNumber: new RegExp(`^\\s*${escapeRegex(cleanInv)}\\s*$`, 'i') });
+    }
+    if (!isTrivial(cleanOrd)) {
+      deleteConditions.push({ userId, orderNumber: new RegExp(`^\\s*${escapeRegex(cleanOrd)}\\s*$`, 'i') });
+    }
+    if (!isTrivial(cleanAwb)) {
+      deleteConditions.push({ userId, awbNumber: new RegExp(`^\\s*${escapeRegex(cleanAwb)}\\s*$`, 'i') });
+    }
+
     const siblings = await Bill.countDocuments({ uploadBatchId: bill.uploadBatchId, _id: { $ne: bill._id } });
     if (siblings === 0) {
       if (bill.cloudinaryPublicId) {
@@ -728,7 +764,9 @@ const deleteBill = async (req, res) => {
         try { fs.unlinkSync(bill.originalFile); } catch { /* ignore */ }
       }
     }
-    await Bill.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
+
+    // Delete the bill and all associated duplicate/matching records for this user
+    await Bill.deleteMany({ userId, $or: deleteConditions });
     res.json({ success: true, message: 'Bill deleted' });
   } catch (error) {
     if (error.name === 'CastError') return res.status(400).json({ success: false, error: 'Invalid bill ID' });

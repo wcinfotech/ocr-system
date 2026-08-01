@@ -1223,8 +1223,21 @@ const deleteBill = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Bill not found' });
     }
 
-    // Set to deleted status, or delete file
-    await Bill.findByIdAndDelete(req.params.id);
+    const userId = bill.userId;
+    const cleanInv = bill.invoiceNumber ? String(bill.invoiceNumber).trim() : null;
+    const cleanOrd = bill.orderNumber ? String(bill.orderNumber).trim() : null;
+    const cleanAwb = bill.awbNumber ? String(bill.awbNumber).trim() : null;
+    const isTrivial = (val) => !val || val.length < 3 || ['N/A', 'NONE', '000', 'NULL', 'UNDEFINED', 'BILL', 'INVOICE'].includes(val.toUpperCase());
+    const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    const deleteConditions = [{ _id: bill._id }, { duplicateOf: bill._id }];
+    if (userId) {
+      if (!isTrivial(cleanInv)) deleteConditions.push({ userId, invoiceNumber: new RegExp(`^\\s*${escapeRegex(cleanInv)}\\s*$`, 'i') });
+      if (!isTrivial(cleanOrd)) deleteConditions.push({ userId, orderNumber: new RegExp(`^\\s*${escapeRegex(cleanOrd)}\\s*$`, 'i') });
+      if (!isTrivial(cleanAwb)) deleteConditions.push({ userId, awbNumber: new RegExp(`^\\s*${escapeRegex(cleanAwb)}\\s*$`, 'i') });
+    }
+
+    await Bill.deleteMany({ $or: deleteConditions });
     await logAction(req, 'Delete Bill', `Deleted bill ${bill.originalFileName}`);
 
     res.json({ success: true, message: 'Bill deleted successfully' });

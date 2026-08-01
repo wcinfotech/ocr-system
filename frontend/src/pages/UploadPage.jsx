@@ -370,8 +370,8 @@ const UploadPage = () => {
 
       {/* Duplicate Bill Warning Modal */}
       {duplicateModalData && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 sm:p-8 border border-slate-100 relative animate-scale-up">
+        <div className="modal-backdrop">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 sm:p-8 border border-slate-100 relative animate-scaleUp">
             <button
               onClick={() => {
                 setDuplicateModalData(null);
