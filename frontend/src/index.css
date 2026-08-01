@@ -67,9 +67,8 @@ html.lenis, html.lenis body {
 }
 
 /* Hardware Compositing Acceleration for Smooth Scrolling */
-.gpu-accelerated, header, nav, .backdrop-blur-md, .backdrop-blur-sm {
+.gpu-accelerated, nav.gpu-accelerated, .backdrop-blur-md, .backdrop-blur-sm {
   will-change: transform;
-  transform: translateZ(0);
   backface-visibility: hidden;
 }
 

@@ -140,10 +140,10 @@ export const Navbar = () => {
   const isContactActive = location.pathname === '/contact-us';
 
   const getLinkClass = (isActive) => {
-    return `text-sm font-semibold transition-all relative py-1 ${
+    return `text-xs sm:text-sm font-bold transition-all duration-200 px-3.5 py-1.5 rounded-full flex items-center gap-1 ${
       isActive
-        ? 'text-blue-600 after:absolute after:-bottom-1.5 after:left-0 after:right-0 after:h-0.5 after:bg-blue-600 after:rounded-full'
-        : 'text-slate-600 hover:text-blue-600'
+        ? 'text-blue-600 bg-blue-50/90 shadow-sm shadow-blue-600/10 border border-blue-100/60'
+        : 'text-slate-600 hover:text-blue-600 hover:bg-slate-100/70'
     }`;
   };
 
@@ -156,285 +156,292 @@ export const Navbar = () => {
   };
 
   return (
-    <header
-      className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
-        isScrolled
-          ? 'bg-white/80 backdrop-blur-md border-b border-slate-200/50 shadow-sm py-4'
-          : 'bg-transparent py-5'
-      }`}
-    >
-      <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-        {/* Logo */}
-        <Link to="/" onClick={closeDropdowns} className="flex items-center gap-2 group">
-          <img src="/logo.png" alt="Escannora Logo" className="h-[58px] object-contain group-hover:scale-102 transition-transform duration-200" />
-        </Link>
-
-        {/* Desktop Nav */}
-        <nav className="hidden lg:flex items-center gap-8">
-          <Link to="/" className={getLinkClass(isHomeActive)}>
-            Home
+    <>
+      <header className="fixed top-0 inset-x-0 z-50 pt-3 sm:pt-4 px-3 sm:px-6 lg:px-8 transition-all duration-300 pointer-events-none">
+        <div
+          className={`pointer-events-auto max-w-7xl mx-auto rounded-full transition-all duration-300 flex items-center justify-between px-4 sm:px-6 ${
+            isScrolled
+              ? 'bg-white/80 backdrop-blur-2xl border border-white/80 shadow-[0_16px_36px_-6px_rgba(15,23,42,0.14),0_6px_16px_-4px_rgba(15,23,42,0.08),inset_0_1px_1px_rgba(255,255,255,0.95),inset_0_-1px_2px_rgba(0,0,0,0.03)] py-2 sm:py-2.5'
+              : 'bg-white/70 backdrop-blur-xl border border-white/70 shadow-[0_10px_30px_-5px_rgba(15,23,42,0.1),0_4px_12px_rgba(15,23,42,0.05),inset_0_1px_1px_rgba(255,255,255,0.9)] py-2.5 sm:py-3'
+          }`}
+        >
+          {/* Logo */}
+          <Link to="/" onClick={closeDropdowns} className="flex items-center gap-2 group shrink-0">
+            <img src="/logo.png" alt="Escannora Logo" className="h-[38px] sm:h-[48px] object-contain group-hover:scale-103 transition-transform duration-200" />
           </Link>
-          
-          {/* Features Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => handleDropdown('features')}
-              className={`flex items-center gap-1 transition-all relative py-1 ${
-                isFeaturesActive
-                  ? 'text-blue-600 after:absolute after:-bottom-1.5 after:left-0 after:right-0 after:h-0.5 after:bg-blue-600 after:rounded-full font-semibold'
-                  : 'text-slate-600 hover:text-blue-600 font-semibold'
-              }`}
-            >
-              Features <ChevronDown className={`w-4 h-4 transition-transform ${activeDropdown === 'features' ? 'rotate-185' : ''}`} />
-            </button>
-            <AnimatePresence>
-              {activeDropdown === 'features' && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={closeDropdowns} />
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-64 bg-white border border-slate-200/80 rounded-2xl shadow-xl p-3 z-20"
-                  >
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 pb-2 border-b border-slate-100">
-                      Core Operations
-                    </div>
-                    <div className="grid gap-1 mt-2">
-                      {featureLinks.map((link) => {
-                        const isActive = location.pathname === link.path;
-                        return (
-                          <Link
-                            key={link.path}
-                            to={link.path}
-                            onClick={closeDropdowns}
-                            className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                              isActive
-                                ? 'bg-blue-50 text-blue-600 font-bold'
-                                : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'
-                            }`}
-                          >
-                            {link.name}
-                          </Link>
-                        );
-                      })}
-                      <Link
-                        to="/features"
-                        onClick={closeDropdowns}
-                        className={`px-3 py-2 mt-1 rounded-xl text-xs font-bold text-center transition-all ${
-                          location.pathname === '/features'
-                            ? 'text-blue-600 bg-blue-100/50 hover:bg-blue-100'
-                            : 'text-blue-600 bg-blue-50 hover:bg-blue-100'
-                        }`}
-                      >
-                        View All Features
-                      </Link>
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
 
-          {/* Marketplace Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => handleDropdown('marketplace')}
-              className={`flex items-center gap-1 transition-all relative py-1 ${
-                isMarketplaceActive
-                  ? 'text-blue-600 after:absolute after:-bottom-1.5 after:left-0 after:right-0 after:h-0.5 after:bg-blue-600 after:rounded-full font-semibold'
-                  : 'text-slate-600 hover:text-blue-600 font-semibold'
-              }`}
-            >
-              Marketplace <ChevronDown className={`w-4 h-4 transition-transform ${activeDropdown === 'marketplace' ? 'rotate-185' : ''}`} />
-            </button>
-            <AnimatePresence>
-              {activeDropdown === 'marketplace' && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={closeDropdowns} />
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-80 bg-white border border-slate-200/80 rounded-2xl shadow-xl p-4 z-20"
-                  >
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pb-2 border-b border-slate-100">
-                      Platform Integrations
-                    </div>
-                    <div className="grid grid-cols-2 gap-1 mt-2">
-                      {marketplaceLinks.slice(0, 8).map((link) => {
-                        const isActive = location.pathname === link.path;
-                        return (
-                          <Link
-                            key={link.path}
-                            to={link.path}
-                            onClick={closeDropdowns}
-                            className={`px-2.5 py-2 rounded-xl text-xs font-medium transition-all truncate ${
-                              isActive
-                                ? 'bg-blue-50 text-blue-600 font-bold'
-                                : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'
-                            }`}
-                          >
-                            {link.name.split(' ')[0]}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-slate-100 flex">
-                      <Link
-                        to="/pricing"
-                        onClick={closeDropdowns}
-                        className="w-full py-2 text-center text-xs font-bold text-blue-600 bg-blue-50 rounded-xl hover:bg-blue-100 transition-all"
-                      >
-                        Explore Marketplace integrations
-                      </Link>
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Solutions Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => handleDropdown('solutions')}
-              className={`flex items-center gap-1 transition-all relative py-1 ${
-                isSolutionsActive
-                  ? 'text-blue-600 after:absolute after:-bottom-1.5 after:left-0 after:right-0 after:h-0.5 after:bg-blue-600 after:rounded-full font-semibold'
-                  : 'text-slate-600 hover:text-blue-600 font-semibold'
-              }`}
-            >
-              Solutions <ChevronDown className={`w-4 h-4 transition-transform ${activeDropdown === 'solutions' ? 'rotate-185' : ''}`} />
-            </button>
-            <AnimatePresence>
-              {activeDropdown === 'solutions' && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={closeDropdowns} />
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-64 bg-white border border-slate-200/80 rounded-2xl shadow-xl p-3 z-20"
-                  >
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 pb-2 border-b border-slate-100">
-                      Industries We Serve
-                    </div>
-                    <div className="grid gap-1 mt-2">
-                      {industryLinks.map((link) => {
-                        const isActive = location.pathname === link.path;
-                        return (
-                          <Link
-                            key={link.path}
-                            to={link.path}
-                            onClick={closeDropdowns}
-                            className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                              isActive
-                                ? 'bg-blue-50 text-blue-600 font-bold'
-                                : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'
-                            }`}
-                          >
-                            {link.name}
-                          </Link>
-                        );
-                      })}
-                      <Link
-                        to="/about-us"
-                        onClick={closeDropdowns}
-                        className={`px-3 py-2 mt-1 rounded-xl text-xs font-bold text-center transition-all ${
-                          location.pathname === '/about-us'
-                            ? 'text-blue-600 bg-blue-100/50 hover:bg-blue-100'
-                            : 'text-blue-600 bg-blue-50 hover:bg-blue-100'
-                        }`}
-                      >
-                        About Our Solutions
-                      </Link>
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-
-          <Link to="/pricing" className={getLinkClass(isPricingActive)}>
-            Pricing
-          </Link>
-          <Link to="/blog" className={getLinkClass(isBlogActive)}>
-            Blog
-          </Link>
-          <Link to="/contact-us" className={getLinkClass(isContactActive)}>
-            Contact
-          </Link>
-        </nav>
-
-        {/* Actions */}
-        <div className="hidden lg:flex items-center gap-4">
-          {isAuthenticated ? (
-            <>
-              <Link
-                to="/app/dashboard"
-                className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors px-4 py-2.5"
-              >
-                Go to Dashboard
-              </Link>
+          {/* Desktop Nav */}
+          <nav className="hidden lg:flex items-center gap-2.5">
+            <Link to="/" className={getLinkClass(isHomeActive)}>
+              Home
+            </Link>
+            
+            {/* Features Dropdown */}
+            <div className="relative">
               <button
-                onClick={handleLogoutClick}
-                className="btn-primary py-2.5 px-5 bg-gradient-to-r from-red-600 to-red-500 shadow-md shadow-red-500/10 hover:shadow-lg hover:shadow-red-500/25"
+                onClick={() => handleDropdown('features')}
+                className={`flex items-center gap-1 text-xs sm:text-sm font-bold transition-all duration-200 px-3.5 py-1.5 rounded-full ${
+                  isFeaturesActive
+                    ? 'text-blue-600 bg-blue-50/90 shadow-sm shadow-blue-600/10 border border-blue-100/60'
+                    : 'text-slate-600 hover:text-blue-600 hover:bg-slate-100/70'
+                }`}
               >
-                Logout
+                Features <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${activeDropdown === 'features' ? 'rotate-180' : ''}`} />
               </button>
-            </>
-          ) : (
-            <>
-              <Link to="/login" className="text-sm font-semibold text-slate-700 hover:text-blue-600 transition-colors">
-                Sign In
-              </Link>
-              <Link
-                to="/book-demo"
-                className="text-sm font-semibold text-slate-600 border border-slate-200 px-4 py-2.5 rounded-xl hover:bg-slate-50 transition-colors"
+              <AnimatePresence>
+                {activeDropdown === 'features' && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={closeDropdowns} />
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-64 bg-white/95 backdrop-blur-2xl border border-white/80 rounded-2xl shadow-[0_20px_50px_rgba(15,23,42,0.15)] p-3 z-20"
+                    >
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 pb-2 border-b border-slate-100">
+                        Core Operations
+                      </div>
+                      <div className="grid gap-1 mt-2">
+                        {featureLinks.map((link) => {
+                          const isActive = location.pathname === link.path;
+                          return (
+                            <Link
+                              key={link.path}
+                              to={link.path}
+                              onClick={closeDropdowns}
+                              className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                                isActive
+                                  ? 'bg-blue-50 text-blue-600 font-bold'
+                                  : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'
+                              }`}
+                            >
+                              {link.name}
+                            </Link>
+                          );
+                        })}
+                        <Link
+                          to="/features"
+                          onClick={closeDropdowns}
+                          className={`px-3 py-2 mt-1 rounded-xl text-xs font-bold text-center transition-all ${
+                            location.pathname === '/features'
+                              ? 'text-blue-600 bg-blue-100/50 hover:bg-blue-100'
+                              : 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                          }`}
+                        >
+                          View All Features
+                        </Link>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Marketplace Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => handleDropdown('marketplace')}
+                className={`flex items-center gap-1 text-xs sm:text-sm font-bold transition-all duration-200 px-3.5 py-1.5 rounded-full ${
+                  isMarketplaceActive
+                    ? 'text-blue-600 bg-blue-50/90 shadow-sm shadow-blue-600/10 border border-blue-100/60'
+                    : 'text-slate-600 hover:text-blue-600 hover:bg-slate-100/70'
+                }`}
               >
-                Book Demo
-              </Link>
-              <Link to="/free-trial" className="btn-primary py-2.5 px-5 shadow-lg shadow-blue-600/10">
-                Start Free Trial
-              </Link>
-            </>
-          )}
+                Marketplace <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${activeDropdown === 'marketplace' ? 'rotate-180' : ''}`} />
+              </button>
+              <AnimatePresence>
+                {activeDropdown === 'marketplace' && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={closeDropdowns} />
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-80 bg-white/95 backdrop-blur-2xl border border-white/80 rounded-2xl shadow-[0_20px_50px_rgba(15,23,42,0.15)] p-4 z-20"
+                    >
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pb-2 border-b border-slate-100">
+                        Platform Integrations
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 mt-2">
+                        {marketplaceLinks.slice(0, 8).map((link) => {
+                          const isActive = location.pathname === link.path;
+                          return (
+                            <Link
+                              key={link.path}
+                              to={link.path}
+                              onClick={closeDropdowns}
+                              className={`px-2.5 py-2 rounded-xl text-xs font-medium transition-all truncate ${
+                                isActive
+                                  ? 'bg-blue-50 text-blue-600 font-bold'
+                                  : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'
+                              }`}
+                            >
+                              {link.name.split(' ')[0]}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-slate-100 flex">
+                        <Link
+                          to="/pricing"
+                          onClick={closeDropdowns}
+                          className="w-full py-2 text-center text-xs font-bold text-blue-600 bg-blue-50 rounded-xl hover:bg-blue-100 transition-all"
+                        >
+                          Explore Marketplace integrations
+                        </Link>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Solutions Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => handleDropdown('solutions')}
+                className={`flex items-center gap-1 text-xs sm:text-sm font-bold transition-all duration-200 px-3.5 py-1.5 rounded-full ${
+                  isSolutionsActive
+                    ? 'text-blue-600 bg-blue-50/90 shadow-sm shadow-blue-600/10 border border-blue-100/60'
+                    : 'text-slate-600 hover:text-blue-600 hover:bg-slate-100/70'
+                }`}
+              >
+                Solutions <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${activeDropdown === 'solutions' ? 'rotate-180' : ''}`} />
+              </button>
+              <AnimatePresence>
+                {activeDropdown === 'solutions' && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={closeDropdowns} />
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-64 bg-white/95 backdrop-blur-2xl border border-white/80 rounded-2xl shadow-[0_20px_50px_rgba(15,23,42,0.15)] p-3 z-20"
+                    >
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 pb-2 border-b border-slate-100">
+                        Industries We Serve
+                      </div>
+                      <div className="grid gap-1 mt-2">
+                        {industryLinks.map((link) => {
+                          const isActive = location.pathname === link.path;
+                          return (
+                            <Link
+                              key={link.path}
+                              to={link.path}
+                              onClick={closeDropdowns}
+                              className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                                isActive
+                                  ? 'bg-blue-50 text-blue-600 font-bold'
+                                  : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'
+                              }`}
+                            >
+                              {link.name}
+                            </Link>
+                          );
+                        })}
+                        <Link
+                          to="/about-us"
+                          onClick={closeDropdowns}
+                          className={`px-3 py-2 mt-1 rounded-xl text-xs font-bold text-center transition-all ${
+                            location.pathname === '/about-us'
+                              ? 'text-blue-600 bg-blue-100/50 hover:bg-blue-100'
+                              : 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                          }`}
+                        >
+                          About Our Solutions
+                        </Link>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <Link to="/pricing" className={getLinkClass(isPricingActive)}>
+              Pricing
+            </Link>
+            <Link to="/blog" className={getLinkClass(isBlogActive)}>
+              Blog
+            </Link>
+            <Link to="/contact-us" className={getLinkClass(isContactActive)}>
+              Contact
+            </Link>
+          </nav>
+
+          {/* Actions */}
+          <div className="hidden lg:flex items-center gap-3">
+            {isAuthenticated ? (
+              <>
+                <Link
+                  to="/app/dashboard"
+                  className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50/80 transition-all px-4 py-2 rounded-full"
+                >
+                  Go to Dashboard
+                </Link>
+                <button
+                  onClick={handleLogoutClick}
+                  className="btn-primary py-2 px-5 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-rose-600 text-white font-bold text-xs shadow-[0_4px_14px_rgba(239,68,68,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] hover:shadow-[0_6px_20px_rgba(239,68,68,0.45)] hover:scale-102 active:scale-98 transition-all duration-200 cursor-pointer"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="text-xs font-bold text-slate-700 hover:text-blue-600 hover:bg-slate-100/70 transition-all px-3.5 py-1.5 rounded-full">
+                  Sign In
+                </Link>
+                <Link
+                  to="/book-demo"
+                  className="text-xs font-bold text-slate-700 border border-slate-200/80 bg-white/60 hover:bg-white px-4 py-2 rounded-full hover:border-slate-300 shadow-sm transition-all"
+                >
+                  Book Demo
+                </Link>
+                <Link to="/free-trial" className="btn-primary py-2 px-5 rounded-full bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 text-white font-bold text-xs shadow-[0_4px_14px_rgba(37,99,235,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.45)] hover:scale-102 active:scale-98 transition-all duration-200 cursor-pointer">
+                  Start Free Trial
+                </Link>
+              </>
+            )}
+          </div>
+
+          {/* Mobile menu toggle */}
+          <button onClick={toggleMobile} className="lg:hidden p-2 rounded-full hover:bg-slate-100/80 active:bg-slate-200/80 transition-colors pointer-events-auto">
+            {mobileOpen ? <X className="w-5 h-5 text-slate-700" /> : <Menu className="w-5 h-5 text-slate-700" />}
+          </button>
         </div>
+      </header>
 
-        {/* Mobile menu toggle */}
-        <button onClick={toggleMobile} className="lg:hidden p-2 rounded-xl hover:bg-slate-100 transition-colors">
-          {mobileOpen ? <X className="w-6 h-6 text-slate-700" /> : <Menu className="w-6 h-6 text-slate-700" />}
-        </button>
-      </div>
-
-      {/* Mobile Drawer */}
+      {/* Mobile Drawer (Rendered outside <header> at document root level so fixed positioning always attaches to viewport!) */}
       <AnimatePresence>
         {mobileOpen && (
-          <>
+          <div className="fixed inset-0 z-[9999] lg:hidden">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40 lg:hidden"
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-md"
               onClick={closeDropdowns}
             />
             <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-80 bg-white border-l border-slate-200 z-50 p-6 flex flex-col justify-between lg:hidden"
+              transition={{ type: 'spring', damping: 28, stiffness: 240 }}
+              className="fixed inset-y-0 right-0 w-full max-w-[320px] bg-white shadow-2xl border-l border-slate-200/80 p-6 flex flex-col justify-between"
             >
               <div className="space-y-6 overflow-y-auto max-h-[80vh] pr-2">
                 <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                  <span className="text-lg font-extrabold text-slate-900">Menu</span>
-                  <button onClick={closeDropdowns} className="p-1 rounded-lg hover:bg-slate-100">
-                    <X className="w-5 h-5 text-slate-500" />
+                  <div className="flex items-center gap-2">
+                    <img src="/logo.png" alt="Escannora Logo" className="h-9 object-contain" />
+                  </div>
+                  <button onClick={closeDropdowns} className="p-2 rounded-full hover:bg-slate-100 active:bg-slate-200 text-slate-500 transition-colors">
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                <nav className="flex flex-col gap-4">
+                <nav className="flex flex-col gap-2">
                   <Link to="/" onClick={closeDropdowns} className={getMobileLinkClass(isHomeActive)}>
                     Home
                   </Link>
@@ -462,13 +469,13 @@ export const Navbar = () => {
                     <Link
                       to="/app/dashboard"
                       onClick={closeDropdowns}
-                      className="w-full btn-primary py-3 flex items-center justify-center font-bold"
+                      className="w-full btn-primary py-3 rounded-full flex items-center justify-center font-bold text-sm bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md shadow-blue-600/20"
                     >
                       Go to Dashboard
                     </Link>
                     <button
                       onClick={handleLogoutClick}
-                      className="w-full py-3 border border-red-200 text-red-600 hover:bg-red-50 font-bold rounded-xl transition-all"
+                      className="w-full py-3 border border-red-200 text-red-600 hover:bg-red-50 font-bold rounded-full text-sm transition-all cursor-pointer"
                     >
                       Logout
                     </button>
@@ -478,21 +485,21 @@ export const Navbar = () => {
                     <Link
                       to="/login"
                       onClick={closeDropdowns}
-                      className="w-full py-3 border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold rounded-xl flex items-center justify-center transition-all"
+                      className="w-full py-2.5 border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold rounded-full text-sm flex items-center justify-center transition-all"
                     >
                       Sign In
                     </Link>
                     <Link
                       to="/book-demo"
                       onClick={closeDropdowns}
-                      className="w-full py-3 border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold rounded-xl flex items-center justify-center transition-all"
+                      className="w-full py-2.5 border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold rounded-full text-sm flex items-center justify-center transition-all"
                     >
                       Book Demo
                     </Link>
                     <Link
                       to="/free-trial"
                       onClick={closeDropdowns}
-                      className="w-full btn-primary py-3 flex items-center justify-center font-bold"
+                      className="w-full btn-primary py-3 rounded-full flex items-center justify-center font-bold text-sm bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md shadow-blue-600/20"
                     >
                       Start Free Trial
                     </Link>
@@ -500,7 +507,7 @@ export const Navbar = () => {
                 )}
               </div>
             </motion.div>
-          </>
+          </div>
         )}
       </AnimatePresence>
 
@@ -509,7 +516,7 @@ export const Navbar = () => {
         onClose={() => setShowLogoutModal(false)}
         onConfirm={confirmLogout}
       />
-    </header>
+    </>
   );
 };
 
