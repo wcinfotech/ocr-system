@@ -18,6 +18,7 @@ import SupportPage from './pages/SupportPage';
 import ProfilePage from './pages/ProfilePage';
 import Home from './marketing/Home';
 import { AboutUs, PricingPage, FeaturesPage, ContactUs, BlogPage, BlogDetailPage, BookDemo, FreeTrial } from './marketing/Pages';
+import SmoothScroll from './components/SmoothScroll';
 import SitemapPage from './marketing/SitemapPage';
 
 function App() {
@@ -51,6 +52,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        <SmoothScroll />
         <ScrollToTop />
         <AnalyticsTracker />
         <Toaster
