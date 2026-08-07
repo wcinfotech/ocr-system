@@ -16,6 +16,7 @@ import RegisterPage from './pages/RegisterPage';
 import SubscriptionPage from './pages/SubscriptionPage';
 import SupportPage from './pages/SupportPage';
 import ProfilePage from './pages/ProfilePage';
+import ReturnsPage from './pages/ReturnsPage';
 import Home from './marketing/Home';
 import { AboutUs, PricingPage, FeaturesPage, ContactUs, BlogPage, BlogDetailPage, BookDemo, FreeTrial } from './marketing/Pages';
 import SmoothScroll from './components/SmoothScroll';
@@ -97,6 +98,7 @@ function App() {
                       <Route path="dashboard" element={<DashboardPage />} />
                       <Route path="upload" element={<UploadPage />} />
                       <Route path="history" element={<BillHistoryPage />} />
+                      <Route path="returns" element={<ReturnsPage />} />
                       <Route path="analytics" element={<AnalyticsPage />} />
                       <Route path="subscription" element={<SubscriptionPage />} />
                       <Route path="support" element={<SupportPage />} />

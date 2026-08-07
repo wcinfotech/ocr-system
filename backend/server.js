@@ -20,6 +20,7 @@ const adminRoutes = require('./src/routes/adminRoutes');
 const blogRoutes = require('./src/routes/blogRoutes');
 const testimonialRoutes = require('./src/routes/testimonialRoutes');
 const analyticsRoutes = require('./src/routes/analyticsRoutes');
+const returnRoutes = require('./src/routes/returnRoutes');
 const { errorHandler, notFound } = require('./src/middleware/errorHandler');
 const { startCleanupScheduler } = require('./src/services/cleanupService');
 const activityLogger = require('./src/middleware/activityLogger');
@@ -84,6 +85,7 @@ app.use('/api/v1/blogs', blogRoutes);
 app.use('/api/v1/testimonials', testimonialRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api', billRoutes);
+app.use('/api', returnRoutes);
 
 // ============================================
 // Error Handling

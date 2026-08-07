@@ -133,4 +133,12 @@ export const logAnalyticsEvent = (name, params = {}) => {
 
 export const getAnalyticsStats = () => api.get('/v1/analytics/stats');
 
+// Return Bills & Matching Endpoints
+export const getReturns = (params = {}) => api.get('/returns', { params });
+export const getReturnStats = () => api.get('/returns/stats');
+export const scanReturn = (code) => api.post('/returns/scan', { code });
+export const matchReturnManually = (returnBillId, originalBillId) => api.post('/returns/match-manually', { returnBillId, originalBillId });
+export const unmatchReturn = (returnBillId) => api.post('/returns/unmatch', { returnBillId });
+export const getReturnComparison = (returnId) => api.get(`/returns/compare/${returnId}`);
+
 export default api;

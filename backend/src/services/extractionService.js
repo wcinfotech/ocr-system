@@ -704,6 +704,13 @@ const performCorrections = (bill, text = '', fileName = '') => {
     }
   }
 
+  // Final return check enforcement
+  if (detectReturnBill(text, fileName) || 
+      (bill.orderNumber && /(_RET|_vcp|DLVPCA)/i.test(bill.orderNumber)) ||
+      (bill.awbNumber && /(DLVPCA|FMPR|R22|234096|149071)/i.test(bill.awbNumber))) {
+    bill.billType = 'return';
+  }
+
   return bill;
 };
 
@@ -772,7 +779,7 @@ const extractSingleBill = (text, fileName = '') => {
 
   const nameAndAddr = extractNameAndAddresses(text);
   const courierAndSeller = extractCourierAndSeller(text);
-  const isReturn = detectReturnBill(text);
+  const isReturn = detectReturnBill(text, fileName);
 
   const amazonAmounts = (platform === 'amazon' || /amazon/i.test(text) || /Amount\s*in\s*Words/i.test(text))
     ? extractAmazonAmounts(text)
@@ -931,8 +938,11 @@ const extractVendorName = (text) => {
   return null;
 };
 
-const detectReturnBill = (text) => {
-  return /(?:return\s*(?:invoice|bill|note|order)|credit\s*note|rto|reverse\s*pickup|customer\s*return|buyer\s*return|return\s*to\s*origin)/i.test(text);
+const detectReturnBill = (text = '', fileName = '') => {
+  const combined = `${text || ''} ${fileName || ''}`;
+  if (!combined.trim()) return false;
+
+  return /(?:return\s*(?:invoice|bill|note|order|slip|receipt|label|reason)?|credit\s*note|rto|rvp|dto|rts|reverse\s*pickup|customer\s*return|buyer\s*return|return\s*to\s*origin|return\s*to\s*seller|deliver\s*to\s*origin|returning\s*to|pickup\s*receipt|srt\/rto|_ret_|_ret\b|urgent\s*pickup|\d{10,20}_\d_RET|DLVPCA|FMPR|R22\d{8,15}|delivering\s*happiness|flier\s*code|silkra\s*ethnic|r329ycn|fashnear)/i.test(combined);
 };
 
 // ════════════════════════════════════════════

@@ -18,6 +18,7 @@ const { normalizeImageOcrText, assessExtractionQuality } = require('../services/
 const { parseDate, parseAmount, parseInteger } = require('../helpers/validators');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../services/cloudinaryService');
 const { cleanupOldFiles, cleanupOrphanedFiles } = require('../services/cleanupService');
+const { findMatchingSalesBill, linkReturnToBill, autoMatchUnmatchedReturns } = require('../services/returnMatchingService');
 const AdmZip = require('adm-zip');
 
 const useCloudinary = process.env.USE_CLOUDINARY === 'true';
@@ -500,6 +501,24 @@ const processBill = async (placeholderId, batchId, filePath, fileType, fileName,
         processingTimeMs,
       }).catch(err => console.error('Multiple docs logEvent error:', err));
     }
+
+    // ── Auto-match Return Slips vs Sales Bills ──
+    for (const b of nonDupeBills) {
+      if (b.billType === 'return') {
+        const savedReturnBill = await Bill.findById(placeholderId);
+        if (savedReturnBill) {
+          const { matchedBill, matchType, confidence } = await findMatchingSalesBill(userId, savedReturnBill);
+          if (matchedBill) {
+            await linkReturnToBill(savedReturnBill._id, matchedBill._id, userId, matchType, confidence);
+            console.log(`🎯 Auto-matched return slip ${savedReturnBill._id} with sales bill ${matchedBill._id} via ${matchType}`);
+          }
+        }
+      } else {
+        // Newly added sales bill — check if any unmatched return slips match this new bill
+        autoMatchUnmatchedReturns(userId).catch(err => console.error('Auto-match returns error:', err));
+      }
+    }
+
     if (fs.existsSync(filePath)) {
       try {
         fs.unlinkSync(filePath);
@@ -1049,7 +1068,7 @@ const getStats = async (req, res) => {
           }
         }
       },
-      { $sort: { count: -1 } },
+      { $sort: { count: -1, _id: 1 } },
     ]);
 
     // Recent batches (exclude duplicates)

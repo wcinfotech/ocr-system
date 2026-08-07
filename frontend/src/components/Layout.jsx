@@ -14,6 +14,7 @@ import {
   HiOutlineDocumentSearch,
   HiOutlineCreditCard,
   HiOutlineQuestionMarkCircle,
+  HiOutlineRefresh,
 } from 'react-icons/hi';
 
 const Layout = ({ children }) => {
@@ -38,6 +39,7 @@ const Layout = ({ children }) => {
     { name: 'Dashboard', path: '/app/dashboard', icon: HiOutlineViewGrid },
     { name: 'Upload Bill', path: '/app/upload', icon: HiOutlineCloudUpload },
     { name: 'Bill History', path: '/app/history', icon: HiOutlineDocumentText },
+    { name: 'Return Bills', path: '/app/returns', icon: HiOutlineRefresh },
     { name: 'Analytics', path: '/app/analytics', icon: HiOutlineChartBar },
     { name: 'Subscription', path: '/app/subscription', icon: HiOutlineCreditCard },
     { name: 'Support', path: '/app/support', icon: HiOutlineQuestionMarkCircle },

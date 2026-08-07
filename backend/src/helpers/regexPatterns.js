@@ -61,6 +61,10 @@ const INVOICE_NUMBER_PATTERNS = [
 const ORDER_NUMBER_PATTERNS = [
   // Amazon order pattern: 123-1234567-1234567 (with OCR-tolerant separators and spaces)
   /\b(\d{3}\s*[\-\s\.\—]+\s*\d{7}\s*[\-\s\.\—]+\s*\d{7})(?!\d)/,
+  // Return Slip Order patterns (Meesho / Xpressbees / Delhivery / Ekart return labels)
+  /\b(\d{15,20}_\d_RET[A-Za-z0-9_]*)\b/i,
+  /\b(DLVPCA\d{8,15})\b/i,
+  /\b(R22\d{8,15}[A-Z]*)\b/i,
   // Flipkart order pattern: OD followed by 18 digits (OCR-tolerant prefixes)
   /\b((?:OD|0D|QD|Q0|O0)\d{18})\b/i,
   // Meesho order patterns
@@ -117,14 +121,19 @@ const AWB_PATTERNS = [
   /(?:lr\s*(?:no|number|#)?\.?\s*[:\-\|\s]?\s*)\s*([A-Z0-9]{8,25})/i,
   /(?:awb\s*[\/\-]?\s*tracking\s*(?:no|number|#|id)?\.?\s*[:\-\|\s]?\s*)\s*([A-Z0-9]{8,25})/i,
 
-  // Flipkart E-kart AWB: FMPC/FMPP/PMPC followed by digits (OCR-tolerant)
+  // Flipkart E-kart AWB: FMPC/FMPP/PMPC/FMPR followed by digits (OCR-tolerant)
   /\b((?:FM|PM|FN)[A-Z0-9]{2}\d{8,14})\b/i,
+  /\b(FMPR\d{8,14})\b/i,
+  /\b(DLVPCA\d{8,15})\b/i,
+  /\b(R22\d{8,15}[A-Z]*)\b/i,
+  /\b(234\d{10,13})\b/,
+  /\b(149\d{10,13})\b/,
   
   // Generic AWB matchers for Amazon, Meesho, Xpressbees, etc.
   /\b(36\d{10})\b/, // E.g. AWB 363930681252
   /\b(13\d{12})\b/, // E.g. AWB# 13371809951323
   /\b(12\d{7,10})\b/, // E.g. AWB No. 123456789
-  /\b(\d{12})\b/, // Bare 12-digit number (often AWB on label)
+  /\b(\d{12,15})\b/, // Bare 12-15 digit number (often AWB on return label)
 
   // Meesho / Xpressbees / Delhivery / Courier Partners
   /(?:xpress\s*bees|xpressbees|delhivery|ecom\s*express|blue\s*dart|ekart|e[\-\s]?kart|shadowfax|dtdc|ats|amazon)[\s\S]{0,120}?\b(\d{10,20})\b/i,
@@ -257,7 +266,7 @@ const VENDOR_NAME_PATTERNS = [
 // ── Return Bill Patterns ──
 const RETURN_TYPE_PATTERNS = [
   /(?:return\s*(?:type|reason|category)\s*[:\-\|\s]?\s*)(.{3,60})/i,
-  /\b(RTO|Return\s*to\s*Origin|Customer\s*Return|Buyer\s*Return|Reverse\s*Pickup|Quality\s*Check\s*Fail|QC\s*Fail|Damaged|Wrong\s*Product|Size\s*Issue)\b/i,
+  /\b(RVP|Reverse\s*Pickup|RTO|Return\s*to\s*Origin|DTO|Deliver\s*to\s*Origin|RTS|Return\s*to\s*Seller|SRT\/RTO|Customer\s*Return|Buyer\s*Return|Urgent\s*Pickup|Quality\s*Check\s*Fail|QC\s*Fail|Damaged|Wrong\s*Product|Size\s*Issue)\b/i,
 ];
 
 const RETURN_STATUS_PATTERNS = [

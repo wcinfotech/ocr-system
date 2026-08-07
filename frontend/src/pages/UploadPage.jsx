@@ -198,6 +198,17 @@ const UploadPage = () => {
         <p className="text-slate-500 text-sm max-w-lg mx-auto mt-2">
           Drag & drop multiple PDFs, JPGs, or ZIP archives. Our high-performance OCR engine extracts invoice details, SKUs, items, and more automatically.
         </p>
+
+        <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-purple-50 border border-purple-200 text-purple-700 rounded-xl text-xs font-semibold shadow-xs">
+          <HiOutlineReceiptRefund className="w-4 h-4 text-purple-600" />
+          Return Shipping Labels (Meesho, Xpressbees, Delhivery, Ekart) are auto-detected and matched with sales bills!
+          <button
+            onClick={() => navigate('/app/returns')}
+            className="ml-2 font-bold underline hover:text-purple-900"
+          >
+            Open Return Hub &rarr;
+          </button>
+        </div>
       </div>
 
       <div className="space-y-6">

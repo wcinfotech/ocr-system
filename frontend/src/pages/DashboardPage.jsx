@@ -292,8 +292,25 @@ const DashboardPage = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-fadeIn">
-          {stats?.platformStats && stats.platformStats.length > 0 ? (
-            stats.platformStats.map((plat) => {
+          {(() => {
+            const sortedPlatformStats = stats?.platformStats && stats.platformStats.length > 0
+              ? [...stats.platformStats].sort((a, b) => {
+                  if ((b.count || 0) !== (a.count || 0)) {
+                    return (b.count || 0) - (a.count || 0);
+                  }
+                  return String(a._id || '').localeCompare(String(b._id || ''));
+                })
+              : [];
+
+            if (sortedPlatformStats.length === 0) {
+              return (
+                <div className="col-span-full py-8 text-center text-slate-400 text-xs font-medium bg-white rounded-2xl border border-slate-100 p-6 shadow-xs">
+                  No platform analytics available. Upload bills to generate performance insights.
+                </div>
+              );
+            }
+
+            return sortedPlatformStats.map((plat) => {
               const meta = getPlatformMeta(plat._id);
               
               // Calculate values
@@ -367,12 +384,8 @@ const DashboardPage = () => {
                   </div>
                 </div>
               );
-            })
-          ) : (
-            <div className="col-span-full py-8 text-center text-slate-400 text-xs font-medium bg-white rounded-2xl border border-slate-100 p-6 shadow-xs">
-              No platform analytics available. Upload bills to generate performance insights.
-            </div>
-          )}
+            });
+          })()}
         </div>
       </div>
 
