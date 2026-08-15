@@ -268,15 +268,48 @@ const autoMatchUnmatchedReturns = async (userId) => {
  */
 const syncReturnBillTypes = async (userId) => {
   try {
+    // Step 1: Re-classify existing bills back to 'regular' if they were falsely marked as 'return'
+    // (e.g. Meesho regular sales bills containing 'fashnear' or 'retail' in filename)
+    const fixedRes = await Bill.updateMany(
+      {
+        userId,
+        billType: 'return',
+        orderNumber: { $not: /(_RET|DLVPCA|FMPR|R22)/i },
+        awbNumber: { $not: /(DLVPCA|FMPR|R22)/i },
+        originalFileName: { $not: /(return_label|return_slip|return_bill|_ret_|_ret\b|\brvp\b|\brto\b|\bdto\b)/i },
+        rawExtractedText: { $not: /(reverse pickup|returning to|pickup receipt|urgent pickup|\brvp\b|\bdto\b|\brto\b|\brts\b|_ret_|credit note|return invoice|return slip|return label)/i },
+      },
+      {
+        $set: {
+          billType: 'regular',
+          returnStatus: 'None',
+          returnDate: null,
+          parsedReturnDate: null,
+        },
+        $unset: {
+          'ocrMetadata.matchedOriginalBillId': '',
+          'ocrMetadata.isMatched': '',
+          'ocrMetadata.matchType': '',
+          'ocrMetadata.matchConfidence': '',
+          'ocrMetadata.matchedAt': '',
+        },
+      }
+    );
+
+    if (fixedRes.modifiedCount > 0) {
+      console.log(`✅ Corrected ${fixedRes.modifiedCount} regular sales bill(s) falsely marked as return for user ${userId}`);
+    }
+
+    // Step 2: Set billType = 'return' ONLY for true return slips
     const res = await Bill.updateMany(
       {
         userId,
         billType: { $ne: 'return' },
         $or: [
-          { orderNumber: { $regex: /(_RET|_vcp|DLVPCA|FMPR|R22)/i } },
-          { awbNumber: { $regex: /(DLVPCA|FMPR|R22|234096|149071)/i } },
-          { originalFileName: { $regex: /(return|rvp|rto|dto|ret)/i } },
-          { rawExtractedText: { $regex: /(reverse pickup|returning to|pickup receipt|urgent pickup|rvp|dto|rto|rts|_ret_|silkra ethnic|r329ycn|fashnear)/i } },
+          { orderNumber: { $regex: /(_RET|DLVPCA|FMPR|R22)/i } },
+          { awbNumber: { $regex: /(DLVPCA|FMPR|R22)/i } },
+          { originalFileName: { $regex: /(return_label|return_slip|return_bill|_ret_|_ret\b|\brvp\b|\brto\b|\bdto\b)/i } },
+          { rawExtractedText: { $regex: /(reverse pickup|returning to|pickup receipt|urgent pickup|\brvp\b|\bdto\b|\brto\b|\brts\b|_ret_|credit note|return invoice|return slip|return label)/i } },
         ],
       },
       { $set: { billType: 'return' } }

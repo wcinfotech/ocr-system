@@ -18,7 +18,7 @@ const { normalizeImageOcrText, assessExtractionQuality } = require('../services/
 const { parseDate, parseAmount, parseInteger } = require('../helpers/validators');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../services/cloudinaryService');
 const { cleanupOldFiles, cleanupOrphanedFiles } = require('../services/cleanupService');
-const { findMatchingSalesBill, linkReturnToBill, autoMatchUnmatchedReturns } = require('../services/returnMatchingService');
+const { findMatchingSalesBill, linkReturnToBill, autoMatchUnmatchedReturns, syncReturnBillTypes } = require('../services/returnMatchingService');
 const AdmZip = require('adm-zip');
 
 const useCloudinary = process.env.USE_CLOUDINARY === 'true';
@@ -687,8 +687,9 @@ const cleanupDuplicateBillsInDB = async (userId) => {
 
 const getBills = async (req, res) => {
   try {
-    // Run cleanup for any pre-existing duplicate entries in DB
+    // Run cleanup for duplicate entries & auto-sync/correct return bill types
     await cleanupDuplicateBillsInDB(req.user._id);
+    await syncReturnBillTypes(req.user._id);
 
     const {
       page = 1, limit = 25, search = '',

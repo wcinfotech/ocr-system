@@ -706,8 +706,8 @@ const performCorrections = (bill, text = '', fileName = '') => {
 
   // Final return check enforcement
   if (detectReturnBill(text, fileName) || 
-      (bill.orderNumber && /(_RET|_vcp|DLVPCA)/i.test(bill.orderNumber)) ||
-      (bill.awbNumber && /(DLVPCA|FMPR|R22|234096|149071)/i.test(bill.awbNumber))) {
+      (bill.orderNumber && /(_RET|DLVPCA)/i.test(bill.orderNumber)) ||
+      (bill.awbNumber && /(DLVPCA|FMPR|R22)/i.test(bill.awbNumber))) {
     bill.billType = 'return';
   }
 
@@ -942,7 +942,7 @@ const detectReturnBill = (text = '', fileName = '') => {
   const combined = `${text || ''} ${fileName || ''}`;
   if (!combined.trim()) return false;
 
-  return /(?:return\s*(?:invoice|bill|note|order|slip|receipt|label|reason)?|credit\s*note|rto|rvp|dto|rts|reverse\s*pickup|customer\s*return|buyer\s*return|return\s*to\s*origin|return\s*to\s*seller|deliver\s*to\s*origin|returning\s*to|pickup\s*receipt|srt\/rto|_ret_|_ret\b|urgent\s*pickup|\d{10,20}_\d_RET|DLVPCA|FMPR|R22\d{8,15}|delivering\s*happiness|flier\s*code|silkra\s*ethnic|r329ycn|fashnear)/i.test(combined);
+  return /\b(?:return\s+(?:invoice|bill|note|order|slip|receipt|label|reason|manifest|shipment)|credit\s+note|rto\b|rvp\b|dto\b|rts\b|reverse\s+pickup|customer\s+return|buyer\s+return|return\s+to\s+origin|return\s+to\s+seller|deliver\s+to\s+origin|returning\s+to|pickup\s+receipt|srt\/rto|_ret_|_ret\b|urgent\s+pickup|\d{10,20}_\d_RET|DLVPCA|FMPR|R22\d{8,15})\b/i.test(combined);
 };
 
 // ════════════════════════════════════════════
